@@ -10,7 +10,7 @@
 \usepackage[utf8]{inputenc}
 \usepackage{lmodern}
 \usepackage[top=2.5cm, bottom=2.5cm, left=2.8cm, right=2.8cm]{geometry}
-\usepackage[dvipsnames]{xcolor}
+\usepackage[dvipsnames,table]{xcolor}
 
 \definecolor{codebg}{RGB}{248,248,248}
 \definecolor{rulecolor}{RGB}{180,180,180}
@@ -82,6 +82,9 @@
 \usepackage{fancyhdr}
 \usepackage{datetime2}
 \usepackage{array}
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{colortbl}
 \usepackage{multirow}
 
 \titleformat{\section}
@@ -463,6 +466,33 @@ The 15 scripts fall naturally into three groups:
 \end{center}
 
 \needspace{5\baselineskip}
+\subsection{What the output looks like}
+
+The series produces both interactive windows and static images.
+Here are two examples from the final scripts.
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.95\linewidth]{35-bezier-interactive-ui.png}
+  \caption{Script~35: the full interactive UI.
+           The left panel shows the quadratic B\'ezier with curvature
+           comb and De Casteljau construction.
+           The right panel has case selector buttons, a parameter slider,
+           display toggles, editable control point textboxes, and a
+           live equation display.
+           This is the destination the series builds toward.}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.72\linewidth]{35-bezier-quartic-3d-plot.png}
+  \caption{Script~35, Case~2: the quartic 3-D curve with De Casteljau
+           construction levels and curvature comb, rendered without
+           the UI panel.
+           In GLMakie this view is fully rotatable with the mouse.}
+\end{figure}
+
+\needspace{5\baselineskip}
 \subsection{All 15 scripts}
 
 \begin{center}
@@ -503,10 +533,15 @@ Script & Name & Output & Key new concept \\
 
 \begin{notebox}
 \textbf{Why is there no script 33?}
-The numbering follows the Python source series from which
-the Julia scripts were ported.
-Script~33 exists in the original series but was not
-included here.
+The numbering follows the original Python source series.
+Script~33 in that series is an interactive Jupyter notebook
+using Python widgets (\cd{ipywidgets}) --- a web-based
+interactive curve editor.
+It was deliberately excluded from the Julia port because
+script~35 (\cd{35-bezier-interactive.jl}) already provides
+a native, richer interactive experience using GLMakie.
+The number 33 is reserved so the two series remain
+in sync.
 \end{notebox}
 
 
@@ -764,6 +799,97 @@ Those three documents plus one run will give you a
 solid foundation for the interactive script (35) and the
 curvature extension (34).
 \end{insightbox}
+
+
+% =============================================================
+\needspace{8\baselineskip}
+\section{About This Series}
+% =============================================================
+
+\subsection{Origin and goal}
+
+This series began as a homework task --- a B\'ezier curve
+implementation in a LibreOffice Calc spreadsheet.
+From there it grew: Python, a web-based interface, a
+Jupyter notebook, Scilab, and finally Julia.
+
+Julia was chosen for its combination of mathematical
+expressiveness, high performance, and --- through GLMakie
+--- a genuinely capable native interactive UI.
+The gap between the pure mathematics and a working
+interactive implementation turned out to be large enough
+to justify a step-by-step scaffolded explanation.
+
+The goal of the series is simple:
+\textbf{understanding B\'ezier curves, from the algebra
+to the interactive plot, with nothing skipped.}
+
+The material is intended to be useful to anyone who wants to:
+\begin{itemize}
+  \item learn B\'ezier curves from first principles,
+  \item learn Julia through a concrete applied project,
+  \item see how a LaTeX documentation series can be built
+        alongside code, or
+  \item understand how to use an AI assistant (Claude)
+        as a collaborative tool for a technical learning project.
+\end{itemize}
+
+There is no intention to show off.
+The series exists because understanding is more valuable
+when it is shared.
+
+\needspace{5\baselineskip}
+\subsection{A note on authorship and AI}
+
+The Julia scripts and all \LaTeX{} explanation documents in
+this series were written by \textbf{Claude} (claude.ai),
+an AI assistant made by Anthropic.
+
+Every document carries the attribution line:
+\begin{center}
+\textit{Directed and curated by E.R.\ Nurwijayadi.
+Code and explanations AI-generated.}
+\end{center}
+
+This means:
+\begin{itemize}
+  \item \textbf{E.R.\ Nurwijayadi} conceived the series,
+        chose the progression, made every design decision,
+        reviewed every document, tested every script,
+        and directed what was written and how.
+  \item \textbf{Claude} wrote the code and explanations
+        based on those directions.
+\end{itemize}
+
+This attribution is stated clearly because the author does
+not wish to claim credit for work that was done by an AI.
+It is also offered as a demonstration of what is possible
+when a human directs an AI collaboratively on a
+sustained technical project.
+
+\needspace{5\baselineskip}
+\subsection{Source code and documents}
+
+All scripts and PDF documentation are available at:
+
+\begin{center}
+\url{https://github.com/epsi-rns/curve}
+\end{center}
+
+The overview document itself can be found at:\\[4pt]
+\url{https://github.com/epsi-rns/curve/blob/main/b%C3%A9zier/julia.docs/00-bezier-overview.pdf}
+
+\begin{notebox}
+\textbf{How this series was made.}
+Each script was uploaded to claude.ai together with its
+output (terminal text or PNG screenshot).
+Claude read the source and the output, then wrote the
+\LaTeX{} explanation from scratch.
+The author reviewed, requested revisions, and made
+structural decisions throughout.
+The entire conversation --- from the first script to this
+overview --- took place in a single long session.
+\end{notebox}
 
 
 % =============================================================
