@@ -1,0 +1,680 @@
+% ============================================================
+% 01-bezier-algebra-output-explained.tex
+% Compile with:  pdflatex -shell-escape 01-bezier-algebra-output-explained.tex
+% Run twice for table of contents.
+% ============================================================
+
+\documentclass[12pt, a4paper]{article}
+
+% ---- Encoding & fonts ----------------------------------------
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+
+% ---- Page geometry -------------------------------------------
+\usepackage[
+  top=2.5cm, bottom=2.5cm,
+  left=2.8cm, right=2.8cm
+]{geometry}
+
+% ---- Colours -------------------------------------------------
+\usepackage[dvipsnames]{xcolor}
+\definecolor{codebg}{RGB}{248,248,248}
+\definecolor{rulecolor}{RGB}{180,180,180}
+\definecolor{examplebg}{RGB}{240,248,255}
+\definecolor{examplerule}{RGB}{100,149,237}
+\definecolor{notebg}{RGB}{255,250,230}
+\definecolor{noterule}{RGB}{210,180,50}
+
+% ---- Minted --------------------------------------------------
+\usepackage{minted}
+\setminted[text]{
+  bgcolor    = codebg,
+  frame      = leftline,
+  framerule  = 1.5pt,
+  rulecolor  = rulecolor,
+  fontsize   = \small,
+  breaklines = true,
+}
+
+% ---- Math ----------------------------------------------------
+\usepackage{amsmath}
+\usepackage{amssymb}
+
+% ---- Boxes ---------------------------------------------------
+\usepackage{mdframed}
+
+\newmdenv[
+  backgroundcolor  = examplebg,
+  linecolor        = examplerule,
+  linewidth        = 1.5pt,
+  leftline         = true,
+  rightline        = false,
+  topline          = false,
+  bottomline       = false,
+  innerleftmargin  = 10pt,
+  innerrightmargin = 8pt,
+  innertopmargin   = 6pt,
+  innerbottommargin= 6pt,
+  skipabove        = 6pt,
+  skipbelow        = 4pt,
+]{examplebox}
+
+\newmdenv[
+  backgroundcolor  = notebg,
+  linecolor        = noterule,
+  linewidth        = 1.5pt,
+  leftline         = true,
+  rightline        = false,
+  topline          = false,
+  bottomline       = false,
+  innerleftmargin  = 10pt,
+  innerrightmargin = 8pt,
+  innertopmargin   = 6pt,
+  innerbottommargin= 6pt,
+  skipabove        = 6pt,
+  skipbelow        = 4pt,
+]{notebox}
+
+% ---- Hyperlinks ----------------------------------------------
+\usepackage[
+  colorlinks = true,
+  linkcolor  = black,
+  urlcolor   = MidnightBlue,
+]{hyperref}
+
+% ---- Misc packages -------------------------------------------
+\usepackage{amsmath}
+\usepackage{booktabs}
+\usepackage{parskip}
+\usepackage{titlesec}
+\usepackage{fancyhdr}
+\usepackage{datetime2}
+
+% ---- Section formatting --------------------------------------
+\titleformat{\section}
+  {\large\bfseries\color{MidnightBlue}}
+  {\thesection.}{0.6em}{}[\vspace{-4pt}\rule{\linewidth}{0.4pt}]
+
+\titleformat{\subsection}
+  {\normalsize\bfseries\color{BrickRed}}
+  {\thesubsection.}{0.5em}{}
+
+% ---- Header / footer -----------------------------------------
+\pagestyle{fancy}
+\fancyhf{}
+\rhead{\textcolor{gray}{\small 01-bezier-algebra-output-explained}}
+\lhead{\textcolor{gray}{\small B\'ezier Output Explanation}}
+\cfoot{\thepage}
+\renewcommand{\headrulewidth}{0.3pt}
+
+% ---- Helpers -------------------------------------------------
+\newcommand{\cd}[1]{\texttt{#1}}
+
+% ---- Title ---------------------------------------------------
+\title{%
+  \vspace{1cm}
+  {\LARGE\bfseries B\'ezier Curve --- Algebraic Expansion}\\[0.4em]
+  {\large Explanation of the Program Output}\\[0.4em]
+  {\normalsize Case 2: Quartic 3-D, 5 Control Points}
+}
+\author{}
+\date{\DTMtoday}
+
+
+% =============================================================
+\begin{document}
+% =============================================================
+
+\maketitle
+\thispagestyle{empty}
+
+\begin{center}
+\begin{minipage}{0.85\textwidth}
+\small
+This document explains the output of \cd{01-bezier-algebra.jl}
+when run with \cd{CASE = 2}.
+It walks through every printed block, explains what each line means,
+and verifies the key numbers by hand.
+No programming knowledge is required --- only basic algebra.
+\end{minipage}
+\end{center}
+
+\vspace{1em}\hrule\vspace{1.5em}
+\tableofcontents
+\newpage
+
+
+% =============================================================
+\section{Background: What Is a B\'ezier Curve?}
+% =============================================================
+
+A \textbf{B\'ezier curve} is a smooth curve controlled by a set of
+\emph{control points}.
+You choose the points; the curve is pulled toward them like magnets,
+but does not necessarily pass through them (except the first and last).
+
+The curve is parameterised by a single number $u \in [0, 1]$.
+At $u = 0$ you are at the start of the curve; at $u = 1$ you are at the end.
+Every value in between gives you a point somewhere along the curve.
+
+The mathematical formula is:
+\[
+  \mathbf{P}(u) = \sum_{i=0}^{n} B(n,i,u)\; P_i
+\]
+where $P_0, \ldots, P_n$ are the control points and
+$B(n,i,u) = \binom{n}{i} u^i (1-u)^{n-i}$
+is the $i$-th \textbf{Bernstein basis polynomial}.
+
+The program's job is to expand this formula into ordinary polynomials
+in $u$ (one per axis), then evaluate them.
+
+
+% =============================================================
+\section{Header and Control Points}
+% =============================================================
+
+\begin{minted}{text}
+================================================================
+  Bezier Curve - Algebraic Expansion
+  CASE 2  |  Quartic  |  3D  |  5 Control Points
+================================================================
+
+  Control Points:
+    P0 :  x=0  y=0  z=1
+    P1 :  x=0  y=4  z=1
+    P2 :  x=4  y=0  z=1
+    P3 :  x=4  y=4  z=1
+    P4 :  x=5  y=4  z=1
+\end{minted}
+
+\textbf{Quartic} means the curve polynomial has degree 4.
+Degree = (number of control points) $- 1 = 5 - 1 = 4$.
+
+The five control points in the $xy$-plane (ignoring $z$ for a moment)
+are roughly:
+
+\medskip
+\begin{center}
+\begin{tabular}{ccc}
+\toprule
+Point & $x$ & $y$ \\
+\midrule
+$P_0$ & 0 & 0 \\
+$P_1$ & 0 & 4 \\
+$P_2$ & 4 & 0 \\
+$P_3$ & 4 & 4 \\
+$P_4$ & 5 & 4 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\begin{notebox}
+\textbf{Key observation about $z$:}
+Every single control point has $z = 1$.
+This means the entire curve lies in the flat plane $z = 1$.
+No matter what $u$ is, $z(u)$ will always equal 1.
+We will see this confirmed in Step~4.
+\end{notebox}
+
+
+% =============================================================
+\section{Step 1 --- Bernstein Form}
+% =============================================================
+
+\begin{minted}{text}
+  P(u) =  [x(u)  y(u)  z(u)]
+
+  P(u) =  B(4,0)*P0 + B(4,1)*P1 + B(4,2)*P2
+                    + B(4,3)*P3 + B(4,4)*P4
+
+  where:
+    B(4,0,u)  =  (1-u)^4
+    B(4,1,u)  =  4u(1-u)^3
+    B(4,2,u)  =  6u^2(1-u)^2
+    B(4,3,u)  =  4u^3(1-u)
+    B(4,4,u)  =  u^4
+\end{minted}
+
+This is the curve formula before any algebra has been done.
+The curve point at parameter $u$ is a \emph{weighted average} of
+all five control points, where the weights are the five Bernstein
+polynomials.
+
+\textbf{Why these particular weights?}
+Each $B(4,i,u)$ is large near $u = i/4$ and small elsewhere.
+So $B(4,0)$ dominates near $u=0$ (pulling the curve toward $P_0$),
+$B(4,4)$ dominates near $u=1$ (pulling toward $P_4$), and so on.
+
+\begin{examplebox}
+\textbf{Boundary behaviour} --- easily checked without any algebra:
+
+\medskip
+At $u = 0$: $(1-0)^4 = 1$, all other terms contain $u$ so they are 0.
+\[
+  \mathbf{P}(0) = 1 \cdot P_0 = (0, 0, 1)
+\]
+The curve \textbf{starts} exactly at $P_0$.
+
+\medskip
+At $u = 1$: $1^4 = 1$, all other terms contain $(1-u)$ so they are 0.
+\[
+  \mathbf{P}(1) = 1 \cdot P_4 = (5, 4, 1)
+\]
+The curve \textbf{ends} exactly at $P_4$.
+
+\medskip
+The intermediate points $P_1, P_2, P_3$ are \emph{not} on the curve ---
+they only attract it.
+\end{examplebox}
+
+\begin{notebox}
+\textbf{Partition of unity.}
+The five weights always sum to exactly 1 for any $u$:
+\[
+  B(4,0) + B(4,1) + B(4,2) + B(4,3) + B(4,4) = 1
+\]
+This guarantees the curve stays inside the bounding box of the
+control points and behaves like a proper weighted average.
+\end{notebox}
+
+
+% =============================================================
+\section{Step 2 --- Substituting the Coordinates}
+% =============================================================
+
+\begin{minted}{text}
+  x(u) =  (1-u)^4*0 + 4u(1-u)^3*0 + 6u^2(1-u)^2*4
+                     + 4u^3(1-u)*4  + u^4*5
+  y(u) =  (1-u)^4*0 + 4u(1-u)^3*4 + 6u^2(1-u)^2*0
+                     + 4u^3(1-u)*4  + u^4*4
+  z(u) =  (1-u)^4*1 + 4u(1-u)^3*1 + 6u^2(1-u)^2*1
+                     + 4u^3(1-u)*1  + u^4*1
+\end{minted}
+
+The program reads the $x$, $y$, $z$ columns of the control point
+matrix and substitutes each coordinate as the scalar weight for
+its basis function.
+
+\begin{examplebox}
+\textbf{Reading the $x$ column:} coordinates are $0, 0, 4, 4, 5$.
+
+The first two basis terms are multiplied by 0, so they vanish.
+Only the last three matter:
+\[
+  x(u) = 6u^2(1-u)^2 \cdot 4
+        + 4u^3(1-u) \cdot 4
+        + u^4 \cdot 5
+\]
+
+\textbf{Reading the $y$ column:} coordinates are $0, 4, 0, 4, 4$.
+
+The first and third terms vanish:
+\[
+  y(u) = 4u(1-u)^3 \cdot 4
+        + 4u^3(1-u) \cdot 4
+        + u^4 \cdot 4
+\]
+
+\textbf{Reading the $z$ column:} all coordinates are $1$.
+
+Every basis term gets weight 1, so:
+\[
+  z(u) = B(4,0) \cdot 1 + B(4,1) \cdot 1 + B(4,2) \cdot 1
+        + B(4,3) \cdot 1 + B(4,4) \cdot 1
+       = 1
+\]
+(The five Bernstein polynomials sum to 1, so $z(u) = 1$ identically.)
+\end{examplebox}
+
+
+% =============================================================
+\section{Step 3 --- Expanding Each Basis Term}
+% =============================================================
+
+\begin{minted}{text}
+  B(4,0,u)  =  (1-u)^4   =  1 - 4u + 6u^2 - 4u^3 + u^4
+  B(4,1,u)  =  4u(1-u)^3 =  4u - 12u^2 + 12u^3 - 4u^4
+  B(4,2,u)  =  6u^2(1-u)^2  =  6u^2 - 12u^3 + 6u^4
+  B(4,3,u)  =  4u^3(1-u)  =  4u^3 - 4u^4
+  B(4,4,u)  =  u^4
+\end{minted}
+
+Each Bernstein polynomial (which contains a product like $u^i(1-u)^{n-i}$)
+is multiplied out into a plain polynomial.
+These are the monomial expansions --- each is now just a sum of powers of $u$.
+
+\begin{examplebox}
+\textbf{Verify $B(4,0) = (1-u)^4$ by hand:}
+
+Using the binomial theorem $(a+b)^4 = a^4 + 4a^3b + 6a^2b^2 + 4ab^3 + b^4$
+with $a=1$ and $b=-u$:
+\[
+  (1-u)^4 = 1 - 4u + 6u^2 - 4u^3 + u^4 \checkmark
+\]
+
+\textbf{Verify $B(4,2) = 6u^2(1-u)^2$ by hand:}
+\[
+  (1-u)^2 = 1 - 2u + u^2
+\]
+\[
+  6u^2(1 - 2u + u^2) = 6u^2 - 12u^3 + 6u^4 \checkmark
+\]
+
+\textbf{Verify $B(4,1) = 4u(1-u)^3$ by hand:}
+\[
+  (1-u)^3 = 1 - 3u + 3u^2 - u^3
+\]
+\[
+  4u(1 - 3u + 3u^2 - u^3) = 4u - 12u^2 + 12u^3 - 4u^4 \checkmark
+\]
+\end{examplebox}
+
+\begin{notebox}
+The coefficients of $(1-u)^n$ follow Pascal's triangle with
+alternating signs: $1, -n, \binom{n}{2}, -\binom{n}{3}, \ldots$
+
+For $n = 4$: $1, -4, +6, -4, +1$.
+\end{notebox}
+
+
+% =============================================================
+\section{Step 4 --- Collecting Terms}
+% =============================================================
+
+\begin{minted}{text}
+  x(u):
+    B(4,0)*   0  =  0
+    B(4,1)*   0  =  0
+    B(4,2)*   4  =  24u^2 - 48u^3 + 24u^4
+    B(4,3)*   4  =  16u^3 - 16u^4
+    B(4,4)*   5  =  5u^4
+  Collected:  x(u)  =  24u^2 - 32u^3 + 13u^4
+
+  y(u):
+    B(4,0)*   0  =  0
+    B(4,1)*   4  =  16u - 48u^2 + 48u^3 - 16u^4
+    B(4,2)*   0  =  0
+    B(4,3)*   4  =  16u^3 - 16u^4
+    B(4,4)*   4  =  4u^4
+  Collected:  y(u)  =  16u - 48u^2 + 64u^3 - 28u^4
+
+  z(u):
+    (all contributions)
+  Collected:  z(u)  =  1
+\end{minted}
+
+This is the core algebraic result.
+Each expanded basis polynomial is scaled by its coordinate value,
+then all five are added together, collecting coefficients
+by power of $u$.
+
+\subsection{Collecting $x(u)$}
+
+\begin{examplebox}
+The three non-zero contributions to $x(u)$, written as columns by power of $u$:
+
+\medskip
+\begin{center}
+\begin{tabular}{lrrrr}
+\toprule
+Contribution & $u^2$ & $u^3$ & $u^4$ \\
+\midrule
+$B(4,2) \times 4 = (6u^2 - 12u^3 + 6u^4) \times 4$ & $+24$ & $-48$ & $+24$ \\
+$B(4,3) \times 4 = (4u^3 - 4u^4) \times 4$          & $0$   & $+16$ & $-16$ \\
+$B(4,4) \times 5 = u^4 \times 5$                     & $0$   & $0$   & $+5$  \\
+\midrule
+\textbf{Sum}                                          & \textbf{24} & \textbf{-32} & \textbf{13} \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\medskip
+\[
+  x(u) = 24u^2 - 32u^3 + 13u^4
+\]
+
+Note: there is no constant term and no $u^1$ term because $P_0$ and $P_1$
+both have $x = 0$, so they contribute nothing to $x(u)$.
+\end{examplebox}
+
+\subsection{Collecting $y(u)$}
+
+\begin{examplebox}
+\begin{center}
+\begin{tabular}{lrrrrr}
+\toprule
+Contribution & $u^1$ & $u^2$ & $u^3$ & $u^4$ \\
+\midrule
+$B(4,1) \times 4 = (4u - 12u^2 + 12u^3 - 4u^4) \times 4$ & $+16$ & $-48$ & $+48$ & $-16$ \\
+$B(4,3) \times 4 = (4u^3 - 4u^4) \times 4$                & $0$   & $0$   & $+16$ & $-16$ \\
+$B(4,4) \times 4 = u^4 \times 4$                          & $0$   & $0$   & $0$   & $+4$  \\
+\midrule
+\textbf{Sum} & \textbf{16} & \textbf{-48} & \textbf{64} & \textbf{-28} \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\medskip
+\[
+  y(u) = 16u - 48u^2 + 64u^3 - 28u^4
+\]
+\end{examplebox}
+
+\subsection{Collecting $z(u)$}
+
+\begin{examplebox}
+All five $z$-coordinates are 1, so all five basis polynomials are
+added with weight 1.
+Because they sum to 1 (partition of unity):
+\[
+  z(u) = 1
+\]
+This is a degree-0 polynomial --- a constant.
+No matter where you are on the curve, $z$ is always 1.
+\end{examplebox}
+
+\subsection{Summary of Final Polynomials}
+
+\begin{center}
+\begin{tabular}{ll}
+\toprule
+Axis & Final polynomial \\
+\midrule
+$x(u)$ & $24u^2 - 32u^3 + 13u^4$ \\
+$y(u)$ & $16u - 48u^2 + 64u^3 - 28u^4$ \\
+$z(u)$ & $1$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+These three polynomials fully describe the curve.
+To find any point on the curve, just substitute a value of $u$.
+
+
+% =============================================================
+\section{Step 5 --- Evaluation Table}
+% =============================================================
+
+\begin{minted}{text}
+       u        x(u)        y(u)        z(u)
+  --------------------------------------------
+    0.00    0.000000    0.000000    1.000000
+    0.25    1.050781    1.890625    1.000000
+    0.50    2.812500    2.250000    1.000000
+    0.75    4.113281    3.140625    1.000000
+    1.00    5.000000    4.000000    1.000000
+\end{minted}
+
+Each row is one sampled point on the curve.
+The program evaluates the three polynomials at $u = 0, 0.25, 0.5, 0.75, 1$.
+
+\subsection{Verifying the Boundary Points}
+
+\begin{examplebox}
+\textbf{At $u = 0$:}
+
+Substituting $u = 0$ into $24u^2 - 32u^3 + 13u^4$:
+every term contains $u$, so $x(0) = 0$.
+Similarly $y(0) = 0$.
+\[
+  \mathbf{P}(0) = (0,\; 0,\; 1) = P_0 \checkmark
+\]
+The curve starts exactly at the first control point.
+
+\medskip
+\textbf{At $u = 1$:}
+\[
+  x(1) = 24(1) - 32(1) + 13(1) = 24 - 32 + 13 = 5
+\]
+\[
+  y(1) = 16(1) - 48(1) + 64(1) - 28(1) = 16 - 48 + 64 - 28 = 4
+\]
+\[
+  \mathbf{P}(1) = (5,\; 4,\; 1) = P_4 \checkmark
+\]
+The curve ends exactly at the last control point.
+\end{examplebox}
+
+\subsection{Verifying $u = 0.25$}
+
+\begin{examplebox}
+Powers needed: $0.25^2 = 0.0625$, $\; 0.25^3 = 0.015625$,
+$\; 0.25^4 = 0.00390625$.
+
+\medskip
+\textbf{$x(0.25)$:}
+\begin{align*}
+  x(0.25) &= 24(0.0625) - 32(0.015625) + 13(0.00390625) \\
+           &= 1.5 - 0.5 + 0.05078125 \\
+           &= 1.05078125 \approx 1.050781 \checkmark
+\end{align*}
+
+\textbf{$y(0.25)$:}
+\begin{align*}
+  y(0.25) &= 16(0.25) - 48(0.0625) + 64(0.015625) - 28(0.00390625) \\
+           &= 4 - 3 + 1 - 0.109375 \\
+           &= 1.890625 \checkmark
+\end{align*}
+\end{examplebox}
+
+\subsection{Verifying $u = 0.50$}
+
+\begin{examplebox}
+Powers needed: $0.5^2 = 0.25$, $\; 0.5^3 = 0.125$,
+$\; 0.5^4 = 0.0625$.
+
+\medskip
+\textbf{$x(0.50)$:}
+\begin{align*}
+  x(0.5) &= 24(0.25) - 32(0.125) + 13(0.0625) \\
+          &= 6 - 4 + 0.8125 \\
+          &= 2.8125 \checkmark
+\end{align*}
+
+\textbf{$y(0.50)$:}
+\begin{align*}
+  y(0.5) &= 16(0.5) - 48(0.25) + 64(0.125) - 28(0.0625) \\
+          &= 8 - 12 + 8 - 1.75 \\
+          &= 2.25 \checkmark
+\end{align*}
+\end{examplebox}
+
+\subsection{Verifying $u = 0.75$}
+
+\begin{examplebox}
+Powers needed: $0.75^2 = 0.5625$, $\; 0.75^3 = 0.421875$,
+$\; 0.75^4 = 0.31640625$.
+
+\medskip
+\textbf{$x(0.75)$:}
+\begin{align*}
+  x(0.75) &= 24(0.5625) - 32(0.421875) + 13(0.31640625) \\
+           &= 13.5 - 13.5 + 4.11328125 \\
+           &= 4.11328125 \approx 4.113281 \checkmark
+\end{align*}
+
+\textbf{$y(0.75)$:}
+\begin{align*}
+  y(0.75) &= 16(0.75) - 48(0.5625) + 64(0.421875) - 28(0.31640625) \\
+           &= 12 - 27 + 27 - 8.859375 \\
+           &= 3.140625 \checkmark
+\end{align*}
+\end{examplebox}
+
+
+% =============================================================
+\section{Verification Block}
+% =============================================================
+
+\begin{minted}{text}
+  Verification at u = 0.50:
+    x(0.50)  =  24u^2 - 32u^3 + 13u^4
+               =  24*0.50^2 + -32*0.50^3 + 13*0.50^4
+               =  2.812500
+
+    y(0.50)  =  16u - 48u^2 + 64u^3 - 28u^4
+               =  16*0.50^1 + -48*0.50^2 + 64*0.50^3 + -28*0.50^4
+               =  2.250000
+
+    z(0.50)  =  1
+               =  1
+               =  1.000000
+\end{minted}
+
+The program automatically picks the middle $u$ value (0.50) and
+prints the full term-by-term substitution for each axis.
+This lets you follow the arithmetic step by step.
+
+The $z$ axis shows the simplest possible verification:
+$z(u) = 1$ is just a constant, so there is nothing to substitute ---
+it is always 1 regardless of $u$.
+
+
+% =============================================================
+\section{Geometric Picture}
+% =============================================================
+
+Putting the five sampled points together:
+
+\begin{center}
+\begin{tabular}{cccc}
+\toprule
+$u$ & $x$ & $y$ & $z$ \\
+\midrule
+0.00 & 0.000 & 0.000 & 1 \\
+0.25 & 1.051 & 1.891 & 1 \\
+0.50 & 2.813 & 2.250 & 1 \\
+0.75 & 4.113 & 3.141 & 1 \\
+1.00 & 5.000 & 4.000 & 1 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\begin{notebox}
+\textbf{What does the curve look like?}
+
+\medskip
+All five points have $z = 1$, so the curve is entirely flat ---
+it lives in a single horizontal plane.
+In the $xy$-plane the curve starts at the origin $(0, 0)$,
+initially heads upward and to the right, reaches a midpoint
+near $(2.8, 2.3)$, then curves further right and upward toward $(5, 4)$.
+
+The curve does \emph{not} pass through $P_1 = (0,4)$, $P_2 = (4,0)$,
+or $P_3 = (4,4)$.
+Those points pull the curve but the curve only interpolates
+(passes through) its two endpoints $P_0$ and $P_4$.
+
+Between $u = 0.25$ and $u = 0.75$ the curve covers the middle
+portion of the journey.
+Notice that $y$ grows more slowly near $u = 0.5$ (from 1.891 to 2.250,
+a rise of 0.359) compared to the first quarter (0 to 1.891).
+This reflects how the control point geometry shapes the
+speed at which the curve travels through space.
+\end{notebox}
+
+\vspace{2em}\hrule\vspace{0.5em}
+{\small\textcolor{gray}{Explanation of output from \texttt{01-bezier-algebra.jl}, Case 2}}
+
+\end{document}

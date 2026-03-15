@@ -1,0 +1,1060 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Quartic Bezier 3D — Interactive</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Outfit:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:      #f4f6fb;
+  --panel:   #ffffff;
+  --border:  #dde2ee;
+  --border2: #c8d0e0;
+  --accent:  #2563eb;
+  --accent2: #e11d48;
+  --accent3: #16a34a;
+  --text:    #1e2433;
+  --muted:   #7b8499;
+  --label:   #4b5470;
+  --shadow:  0 1px 4px rgba(0,0,0,0.08),
+             0 4px 16px rgba(0,0,0,0.05);
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Outfit', sans-serif;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 24px 16px 40px;
+}
+
+header {
+  width: 100%;
+  max-width: 1020px;
+  margin-bottom: 18px;
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+}
+header h1 {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--accent);
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+header span {
+  font-size: 0.78rem;
+  color: var(--muted);
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.workspace {
+  width: 100%;
+  max-width: 1020px;
+  display: grid;
+  grid-template-columns: 1fr 272px;
+  gap: 14px;
+  align-items: start;
+}
+
+/* ── 3D viewport ── */
+.viewport-card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: var(--shadow);
+  position: relative;
+}
+#threeCanvas {
+  display: block;
+  width: 100% !important;
+}
+.hint-3d {
+  position: absolute;
+  bottom: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(255,255,255,0.88);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 4px 14px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.68rem;
+  color: var(--muted);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+/* ── Sidebar ── */
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+  box-shadow: var(--shadow);
+}
+.card-title {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.64rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 12px;
+}
+
+/* ── Toggles ── */
+.toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+.toggle-row:last-of-type { margin-bottom: 0; }
+.toggle-label { font-size: 0.875rem; color: var(--label); }
+
+.toggle {
+  position: relative;
+  width: 38px; height: 20px; flex-shrink: 0;
+}
+.toggle input { opacity: 0; width: 0; height: 0; }
+.toggle-track {
+  position: absolute; inset: 0;
+  background: var(--border2);
+  border-radius: 20px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.toggle-thumb {
+  position: absolute;
+  top: 3px; left: 3px;
+  width: 14px; height: 14px;
+  background: #fff;
+  border-radius: 50%;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.25);
+  transition: transform 0.2s;
+  pointer-events: none;
+}
+.toggle input:checked ~ .toggle-track {
+  background: var(--accent);
+}
+.toggle input:checked ~ .toggle-track .toggle-thumb {
+  transform: translateX(18px);
+}
+
+/* ── u slider ── */
+.u-block { margin-top: 12px; }
+.u-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+.u-header label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.8rem;
+  color: var(--label);
+}
+.u-val {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--accent);
+  background: #eff4ff;
+  padding: 1px 8px;
+  border-radius: 4px;
+}
+input[type=range] {
+  width: 100%;
+  -webkit-appearance: none;
+  height: 4px;
+  background: var(--border2);
+  border-radius: 4px;
+  outline: none;
+  cursor: pointer;
+}
+input[type=range]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 15px; height: 15px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 3px #eff4ff;
+  cursor: grab;
+}
+
+/* ── Editable point inputs ── */
+.pt-rows { display: flex; flex-direction: column; gap: 9px; }
+.pt-row {
+  display: grid;
+  grid-template-columns: 10px 24px 1fr 1fr 1fr;
+  align-items: center;
+  gap: 5px;
+}
+.pt-dot {
+  width: 10px; height: 10px;
+  border-radius: 50%; flex-shrink: 0;
+}
+.pt-name {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.74rem;
+  font-weight: 600;
+  color: var(--label);
+}
+.pt-input {
+  width: 100%;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.72rem;
+  padding: 4px 4px;
+  border: 1px solid var(--border2);
+  border-radius: 5px;
+  background: var(--bg);
+  color: var(--text);
+  outline: none;
+  transition: border-color 0.15s;
+  text-align: center;
+}
+.pt-input:focus { border-color: var(--accent); }
+.pt-hint {
+  font-size: 0.7rem;
+  color: var(--muted);
+  margin-top: 8px;
+  line-height: 1.6;
+}
+.pt-xyz-labels {
+  display: grid;
+  grid-template-columns: 10px 24px 1fr 1fr 1fr;
+  gap: 5px;
+  margin-bottom: 4px;
+}
+.pt-xyz-labels span {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.62rem;
+  color: var(--muted);
+  text-align: center;
+  letter-spacing: 0.06em;
+}
+
+/* ── Equation card ── */
+.eq-box {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.72rem;
+  line-height: 1.85;
+  color: var(--label);
+  padding: 10px 12px;
+  background: #f8faff;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+}
+.eq-head {
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 2px;
+}
+.eq-val    { color: var(--accent);  font-weight: 600; }
+.eq-result { color: var(--accent3); font-weight: 600; }
+
+/* ── Legend ── */
+.legend { display: flex; flex-direction: column; gap: 6px; }
+.legend-item {
+  display: flex; align-items: center;
+  gap: 8px; font-size: 0.8rem; color: var(--label);
+}
+.leg-swatch {
+  width: 20px; height: 3px;
+  border-radius: 2px; flex-shrink: 0;
+}
+.leg-dash {
+  width: 20px; height: 0;
+  border-top: 2px dashed; flex-shrink: 0;
+}
+.leg-dot {
+  width: 9px; height: 9px;
+  border-radius: 50%; flex-shrink: 0;
+}
+.leg-diamond {
+  width: 8px; height: 8px;
+  transform: rotate(45deg); flex-shrink: 0;
+}
+
+/* ── Reset ── */
+.btn-reset {
+  width: 100%;
+  padding: 9px;
+  background: transparent;
+  border: 1px solid var(--border2);
+  border-radius: 8px;
+  color: var(--muted);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.74rem;
+  letter-spacing: 0.07em;
+  cursor: pointer;
+  transition: border-color 0.2s, color 0.2s, background 0.2s;
+}
+.btn-reset:hover {
+  border-color: var(--accent2);
+  color: var(--accent2);
+  background: #fff5f7;
+}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Bezier · Quartic · 3D</h1>
+  <span>// orbit · zoom · pan  |  edit points below</span>
+</header>
+
+<div class="workspace">
+
+  <!-- 3D viewport -->
+  <div class="viewport-card">
+    <canvas id="threeCanvas"></canvas>
+    <div class="hint-3d">
+      Left-drag: orbit &nbsp;|&nbsp;
+      Right-drag / two-finger: pan &nbsp;|&nbsp;
+      Scroll: zoom
+    </div>
+  </div>
+
+  <!-- Sidebar -->
+  <div class="sidebar">
+
+    <div class="card">
+      <div class="card-title">Display</div>
+
+      <div class="toggle-row">
+        <span class="toggle-label">Control Polygon</span>
+        <label class="toggle">
+          <input type="checkbox" id="togPolygon" checked>
+          <div class="toggle-track">
+            <div class="toggle-thumb"></div>
+          </div>
+        </label>
+      </div>
+
+      <div class="toggle-row">
+        <span class="toggle-label">Axes Helper</span>
+        <label class="toggle">
+          <input type="checkbox" id="togAxes" checked>
+          <div class="toggle-track">
+            <div class="toggle-thumb"></div>
+          </div>
+        </label>
+      </div>
+
+      <div class="toggle-row">
+        <span class="toggle-label">Equation</span>
+        <label class="toggle">
+          <input type="checkbox" id="togEquation" checked>
+          <div class="toggle-track">
+            <div class="toggle-thumb"></div>
+          </div>
+        </label>
+      </div>
+
+      <div class="toggle-row">
+        <span class="toggle-label">De Casteljau</span>
+        <label class="toggle">
+          <input type="checkbox" id="togDC" checked>
+          <div class="toggle-track">
+            <div class="toggle-thumb"></div>
+          </div>
+        </label>
+      </div>
+
+      <div class="u-block">
+        <div class="u-header">
+          <label>Parameter u</label>
+          <span class="u-val" id="uVal">0.50</span>
+        </div>
+        <input type="range" id="uSlider"
+          min="0" max="1" step="0.01" value="0.5">
+      </div>
+    </div>
+
+    <!-- Points (editable) -->
+    <div class="card">
+      <div class="card-title">Control Points</div>
+      <div class="pt-xyz-labels">
+        <span></span><span></span>
+        <span>x</span><span>y</span><span>z</span>
+      </div>
+      <div class="pt-rows" id="ptRows"></div>
+      <p class="pt-hint">Type to edit · Enter or Tab to apply</p>
+    </div>
+
+    <!-- Equation -->
+    <div class="card" id="eqCard">
+      <div class="card-title">Equation</div>
+      <div class="eq-box" id="eqBox"></div>
+    </div>
+
+    <!-- Legend -->
+    <div class="card">
+      <div class="card-title">Legend</div>
+      <div class="legend">
+        <div class="legend-item">
+          <div class="leg-swatch" style="background:#2563eb"></div>
+          Bezier Curve
+        </div>
+        <div class="legend-item">
+          <div class="leg-dash" style="border-color:#e11d48"></div>
+          Control Polygon
+        </div>
+        <div class="legend-item">
+          <div class="leg-swatch" style="background:#f59e0b"></div>
+          DC L1 — Q0..Q3
+        </div>
+        <div class="legend-item">
+          <div class="leg-swatch" style="background:#ec4899"></div>
+          DC L2 — R0..R2
+        </div>
+        <div class="legend-item">
+          <div class="leg-swatch" style="background:#8b5cf6"></div>
+          DC L3 — S0, S1
+        </div>
+        <div class="legend-item">
+          <div class="leg-diamond" style="background:#16a34a"></div>
+          DC L4 — T0 (curve point)
+        </div>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <button class="btn-reset" id="btnResetView">
+        &#8635; View
+      </button>
+      <button class="btn-reset" id="btnResetPts">
+        &#8635; Points
+      </button>
+    </div>
+
+  </div>
+</div>
+
+<!-- Three.js + OrbitControls from CDN -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+// ── Homework control points [x, y, z] — mutable ─────────────
+
+const DEFAULTS = [
+  [0, 0, 1],   // P0
+  [0, 4, 1],   // P1
+  [4, 0, 1],   // P2
+  [4, 4, 1],   // P3
+  [5, 4, 1],   // P4
+];
+
+let CTRL_PTS = DEFAULTS.map(p => [...p]);
+
+const PT_NAMES  = ['P0','P1','P2','P3','P4'];
+const PT_COLORS_HEX = [
+  '#e11d48', '#9333ea', '#ea580c', '#0891b2', '#16a34a'
+];
+const PT_COLORS_INT = [
+  0xe11d48, 0x9333ea, 0xea580c, 0x0891b2, 0x16a34a
+];
+
+const DC_COLORS_HEX = [
+  '#f59e0b',   // L1
+  '#ec4899',   // L2
+  '#8b5cf6',   // L3
+  '#16a34a',   // L4 final
+];
+const DC_COLORS_INT = [
+  0xf59e0b, 0xec4899, 0x8b5cf6, 0x16a34a
+];
+
+let u         = 0.5;
+let showPoly  = true;
+let showAxes  = true;
+let showEq    = true;
+let showDC    = true;
+
+// ── Three.js scene setup ─────────────────────────────────────
+
+const container = document.getElementById('threeCanvas');
+const W = 700, H = 540;
+
+const renderer = new THREE.WebGLRenderer({
+  canvas: container,
+  antialias: true
+});
+renderer.setPixelRatio(window.devicePixelRatio);
+renderer.setSize(W, H);
+renderer.setClearColor(0xffffff, 1);
+
+const scene  = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(45, W / H, 0.01, 200);
+camera.position.set(8, 6, 10);
+camera.lookAt(3, 2, 1);
+
+// Soft ambient + directional light (for sphere shading)
+scene.add(new THREE.AmbientLight(0xffffff, 0.9));
+const dLight = new THREE.DirectionalLight(0xffffff, 0.5);
+dLight.position.set(10, 10, 10);
+scene.add(dLight);
+
+// ── Inline OrbitControls ─────────────────────────────────────
+// Three r128 doesn't bundle OrbitControls in the CDN min build,
+// so we implement a lightweight orbit/pan/zoom directly.
+
+const orbit = {
+  _btn:    -1,
+  _last:   [0, 0],
+  spherical: { theta: -0.6, phi: 1.1, r: 14 },
+  target:  new THREE.Vector3(2.5, 2, 1),
+
+  _apply() {
+    const { theta, phi, r } = this.spherical;
+    const sinPhi = Math.sin(phi);
+    camera.position.set(
+      this.target.x + r * sinPhi * Math.sin(theta),
+      this.target.y + r * Math.cos(phi),
+      this.target.z + r * sinPhi * Math.cos(theta)
+    );
+    camera.lookAt(this.target);
+    renderScene();
+  },
+
+  onMouseDown(e) {
+    this._btn  = e.button;
+    this._last = [e.clientX, e.clientY];
+  },
+
+  onMouseMove(e) {
+    if (this._btn < 0) return;
+    const dx = e.clientX - this._last[0];
+    const dy = e.clientY - this._last[1];
+    this._last = [e.clientX, e.clientY];
+
+    if (this._btn === 0) {
+      // Orbit
+      this.spherical.theta -= dx * 0.007;
+      this.spherical.phi    =
+        Math.max(0.05,
+          Math.min(Math.PI - 0.05,
+            this.spherical.phi + dy * 0.007));
+    } else if (this._btn === 2) {
+      // Pan
+      const right = new THREE.Vector3();
+      const up    = new THREE.Vector3();
+      camera.getWorldDirection(new THREE.Vector3());
+      right.crossVectors(
+        camera.getWorldDirection(new THREE.Vector3()),
+        camera.up
+      ).normalize();
+      up.copy(camera.up).normalize();
+      const scale = this.spherical.r * 0.0015;
+      this.target.addScaledVector(right, -dx * scale);
+      this.target.addScaledVector(up,     dy * scale);
+    }
+    this._apply();
+  },
+
+  onMouseUp()    { this._btn = -1; },
+
+  onWheel(e) {
+    this.spherical.r = Math.max(1,
+      Math.min(40, this.spherical.r + e.deltaY * 0.02));
+    this._apply();
+  },
+
+  onTouchStart(e) {
+    if (e.touches.length === 1) {
+      this._btn  = 0;
+      this._last = [e.touches[0].clientX, e.touches[0].clientY];
+    }
+  },
+
+  onTouchMove(e) {
+    if (e.touches.length === 1 && this._btn === 0) {
+      const dx = e.touches[0].clientX - this._last[0];
+      const dy = e.touches[0].clientY - this._last[1];
+      this._last = [e.touches[0].clientX, e.touches[0].clientY];
+      this.spherical.theta -= dx * 0.007;
+      this.spherical.phi    =
+        Math.max(0.05,
+          Math.min(Math.PI - 0.05,
+            this.spherical.phi + dy * 0.007));
+      this._apply();
+    }
+  },
+
+  reset() {
+    this.spherical = { theta: -0.6, phi: 1.1, r: 14 };
+    this.target.set(2.5, 2, 1);
+    this._apply();
+  }
+};
+
+container.addEventListener('mousedown',
+  e => orbit.onMouseDown(e));
+window.addEventListener('mousemove',
+  e => orbit.onMouseMove(e));
+window.addEventListener('mouseup',
+  () => orbit.onMouseUp());
+container.addEventListener('wheel',
+  e => { e.preventDefault(); orbit.onWheel(e); },
+  { passive: false });
+container.addEventListener('contextmenu',
+  e => e.preventDefault());
+container.addEventListener('touchstart',
+  e => orbit.onTouchStart(e), { passive: true });
+container.addEventListener('touchmove',
+  e => orbit.onTouchMove(e), { passive: true });
+container.addEventListener('touchend',
+  () => { orbit._btn = -1; });
+
+// ── Scene objects registry ───────────────────────────────────
+
+const objects = {
+  curve:       null,
+  polygon:     null,
+  ctrlSpheres: [],
+  ctrlLabels:  [],
+  axesHelper:  null,
+  gridHelper:  null,
+  dcGroups:    [],
+  dcSpheres:   [],
+};
+
+// ── Math helpers ─────────────────────────────────────────────
+
+function lerp3(a, b, t) {
+  return [
+    (1-t)*a[0] + t*b[0],
+    (1-t)*a[1] + t*b[1],
+    (1-t)*a[2] + t*b[2],
+  ];
+}
+
+function reduce3(pts, t) {
+  const out = [];
+  for (let i = 0; i < pts.length - 1; i++) {
+    out.push(lerp3(pts[i], pts[i+1], t));
+  }
+  return out;
+}
+
+function dcAll3(pts, t) {
+  const l0 = pts;
+  const l1 = reduce3(l0, t);
+  const l2 = reduce3(l1, t);
+  const l3 = reduce3(l2, t);
+  const l4 = reduce3(l3, t);
+  return [l0, l1, l2, l3, l4];
+}
+
+function bezierPt3(pts, t) {
+  return dcAll3(pts, t)[4][0];
+}
+
+// ── Geometry builders ────────────────────────────────────────
+
+function makeLineFromPts(pts3d, color, dashed) {
+  const positions = [];
+  pts3d.forEach(p => positions.push(p[0], p[2], p[1]));
+  // Note: Three.js Y-up, homework uses z=1 plane.
+  // We map: x->x, y->z(depth), z->y(up)
+  // So homework (x,y,z) -> THREE (x, z, y)
+
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position',
+    new THREE.Float32BufferAttribute(positions, 3));
+
+  const mat = dashed
+    ? new THREE.LineDashedMaterial({
+        color, dashSize: 0.2, gapSize: 0.12, linewidth: 1
+      })
+    : new THREE.LineBasicMaterial({ color, linewidth: 2 });
+
+  const line = new THREE.Line(geo, mat);
+  if (dashed) line.computeLineDistances();
+  return line;
+}
+
+function makeSprite(text, color) {
+  const cv   = document.createElement('canvas');
+  cv.width   = 128;
+  cv.height  = 64;
+  const c    = cv.getContext('2d');
+  c.fillStyle = color;
+  c.font      = 'bold 22px JetBrains Mono, monospace';
+  c.textAlign = 'left';
+  c.fillText(text, 4, 32);
+  const tex = new THREE.CanvasTexture(cv);
+  const mat = new THREE.SpriteMaterial({
+    map: tex, transparent: true, depthTest: false
+  });
+  const sp  = new THREE.Sprite(mat);
+  sp.scale.set(1.4, 0.7, 1);
+  return sp;
+}
+
+function makeCtrlSphere(pos3, color) {
+  const geo  = new THREE.SphereGeometry(0.12, 16, 16);
+  const mat  = new THREE.MeshLambertMaterial({ color });
+  const mesh = new THREE.Mesh(geo, mat);
+  // Map (x,y,z) -> THREE (x, z, y)
+  mesh.position.set(pos3[0], pos3[2], pos3[1]);
+  return mesh;
+}
+
+function makeDCSphere(pos3, color, r) {
+  const geo  = new THREE.SphereGeometry(r, 12, 12);
+  const mat  = new THREE.MeshLambertMaterial({ color });
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.position.set(pos3[0], pos3[2], pos3[1]);
+  return mesh;
+}
+
+function makeDiamond(pos3, color) {
+  const geo  = new THREE.OctahedronGeometry(0.18, 0);
+  const mat  = new THREE.MeshLambertMaterial({ color });
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.position.set(pos3[0], pos3[2], pos3[1]);
+  return mesh;
+}
+
+// ── Build/rebuild scene objects ──────────────────────────────
+
+function clearGroup(arr) {
+  arr.forEach(o => scene.remove(o));
+  arr.length = 0;
+}
+
+function buildCurve() {
+  if (objects.curve) scene.remove(objects.curve);
+  const N   = 300;
+  const pts = [];
+  for (let i = 0; i <= N; i++) {
+    pts.push(bezierPt3(CTRL_PTS, i / N));
+  }
+  objects.curve = makeLineFromPts(pts, 0x2563eb, false);
+  scene.add(objects.curve);
+}
+
+function buildPolygon() {
+  if (objects.polygon) scene.remove(objects.polygon);
+  objects.polygon = makeLineFromPts(
+    CTRL_PTS, 0xe11d48, true
+  );
+  objects.polygon.visible = showPoly;
+  scene.add(objects.polygon);
+}
+
+function buildCtrlPoints() {
+  clearGroup(objects.ctrlSpheres);
+  clearGroup(objects.ctrlLabels);
+
+  CTRL_PTS.forEach((p, i) => {
+    const sp = makeCtrlSphere(p, PT_COLORS_INT[i]);
+    objects.ctrlSpheres.push(sp);
+    scene.add(sp);
+
+    const coords =
+      `${PT_NAMES[i]}(${p[0]},${p[1]},${p[2]})`;
+    const label  = makeSprite(coords, PT_COLORS_HEX[i]);
+    label.position.set(p[0]+0.25, p[2]+0.08, p[1]+0.18);
+    objects.ctrlLabels.push(label);
+    scene.add(label);
+  });
+}
+
+function buildAxesGrid() {
+  if (objects.axesHelper) scene.remove(objects.axesHelper);
+  if (objects.gridHelper) scene.remove(objects.gridHelper);
+
+  const ax = new THREE.AxesHelper(6);
+  ax.visible = showAxes;
+  objects.axesHelper = ax;
+  scene.add(ax);
+
+  const gr = new THREE.GridHelper(10, 10, 0xdde2ee, 0xedf0f7);
+  gr.visible = showAxes;
+  objects.gridHelper = gr;
+  scene.add(gr);
+}
+
+function buildDC() {
+  clearGroup(objects.dcGroups);
+  clearGroup(objects.dcSpheres);
+
+  if (!showDC) return;
+
+  const levels = dcAll3(CTRL_PTS, u);
+
+  // L1, L2, L3: lines + dots
+  const dotR = [0.09, 0.08, 0.07];
+  for (let lv = 1; lv <= 3; lv++) {
+    const col = DC_COLORS_INT[lv - 1];
+    const pts = levels[lv];
+
+    if (pts.length > 1) {
+      const line = makeLineFromPts(pts, col, false);
+      objects.dcGroups.push(line);
+      scene.add(line);
+    }
+
+    pts.forEach(p => {
+      const sp = makeDCSphere(p, col, dotR[lv - 1]);
+      objects.dcSpheres.push(sp);
+      scene.add(sp);
+    });
+  }
+
+  // L4: diamond
+  const t0 = levels[4][0];
+  const dm  = makeDiamond(t0, DC_COLORS_INT[3]);
+  objects.dcGroups.push(dm);
+  scene.add(dm);
+
+  // Label T0
+  const lbl = makeSprite(
+    `T0(${t0[0].toFixed(2)},`
+    + `${t0[1].toFixed(2)},`
+    + `${t0[2].toFixed(2)})`,
+    DC_COLORS_HEX[3]
+  );
+  lbl.position.set(
+    t0[0] + 0.25, t0[2] + 0.08, t0[1] + 0.18
+  );
+  objects.dcGroups.push(lbl);
+  scene.add(lbl);
+}
+
+// ── Equation sidebar ─────────────────────────────────────────
+
+function fmt(v) {
+  return parseFloat(v.toFixed(3)).toString();
+}
+
+function buildPolyStr(coeffs, sups) {
+  let s = ''; let first = true;
+  coeffs.forEach((c, i) => {
+    if (Math.abs(c) < 1e-9) return;
+    const sign = c < 0
+      ? (first ? '-' : ' - ')
+      : (first ? ''  : ' + ');
+    s    += sign + fmt(Math.abs(c)) + sups[i];
+    first = false;
+  });
+  return s || '0';
+}
+
+function deriveEq() {
+  const xs = CTRL_PTS.map(p => p[0]);
+  const ys = CTRL_PTS.map(p => p[1]);
+  const [x0,x1,x2,x3,x4] = xs;
+  const [y0,y1,y2,y3,y4] = ys;
+
+  const xc = [
+    x4 - 4*x3 + 6*x2 - 4*x1 + x0,
+    4*x3 - 12*x2 + 12*x1 - 4*x0,
+    6*x2 - 12*x1 + 6*x0,
+   -4*x1 + 4*x0,
+    x0,
+  ];
+  const yc = [
+    y4 - 4*y3 + 6*y2 - 4*y1 + y0,
+    4*y3 - 12*y2 + 12*y1 - 4*y0,
+    6*y2 - 12*y1 + 6*y0,
+   -4*y1 + 4*y0,
+    y0,
+  ];
+
+  const sups = [
+    'u\u2074','u\u00B3','u\u00B2','u',''
+  ];
+
+  function evalP(c, t) {
+    return c[0]*t**4 + c[1]*t**3
+         + c[2]*t**2 + c[3]*t + c[4];
+  }
+
+  return {
+    xEq: buildPolyStr(xc, sups),
+    yEq: buildPolyStr(yc, sups),
+    zEq: 'z(u) = 1',
+    xAt: evalP(xc, u),
+    yAt: evalP(yc, u),
+    zAt: 1,
+  };
+}
+
+function updateEqCard() {
+  const eq = deriveEq();
+  document.getElementById('eqBox').innerHTML = `
+    <div class="eq-head">Bernstein — degree 4</div>
+    P=(1-u)\u2074P0+4u(1-u)\u00B3P1<br>
+    +6u\u00B2(1-u)\u00B2P2+4u\u00B3(1-u)P3+u\u2074P4
+    <br><br>
+    <div class="eq-head">Monomial form</div>
+    x(u)=<span class="eq-val">${eq.xEq}</span><br>
+    y(u)=<span class="eq-val">${eq.yEq}</span><br>
+    <span class="eq-val">${eq.zEq}</span>
+    <br><br>
+    <div class="eq-head">At u = ${u.toFixed(2)}</div>
+    x=<span class="eq-result">${eq.xAt.toFixed(4)}</span>
+    &nbsp;
+    y=<span class="eq-result">${eq.yAt.toFixed(4)}</span>
+    &nbsp;
+    z=<span class="eq-result">1</span>
+  `;
+  document.getElementById('eqCard')
+    .style.display = showEq ? '' : 'none';
+}
+
+function buildPtInputs() {
+  const el = document.getElementById('ptRows');
+  el.innerHTML = '';
+
+  CTRL_PTS.forEach((p, i) => {
+    const row = document.createElement('div');
+    row.className = 'pt-row';
+    row.innerHTML = `
+      <div class="pt-dot"
+        style="background:${PT_COLORS_HEX[i]}"></div>
+      <span class="pt-name">${PT_NAMES[i]}</span>
+      <input class="pt-input" type="number"
+        id="inp_${i}_x" value="${p[0]}"
+        step="0.5" placeholder="x">
+      <input class="pt-input" type="number"
+        id="inp_${i}_y" value="${p[1]}"
+        step="0.5" placeholder="y">
+      <input class="pt-input" type="number"
+        id="inp_${i}_z" value="${p[2]}"
+        step="0.5" placeholder="z">
+    `;
+    el.appendChild(row);
+
+    ['x','y','z'].forEach((axis, ai) => {
+      row.querySelector(`#inp_${i}_${axis}`)
+        .addEventListener('change', e => {
+          const v = parseFloat(e.target.value);
+          if (!isNaN(v)) {
+            CTRL_PTS[i][ai] = v;
+            rebuildAll();
+          }
+        });
+    });
+  });
+}
+
+function syncPtInputs() {
+  CTRL_PTS.forEach((p, i) => {
+    ['x','y','z'].forEach((axis, ai) => {
+      const inp = document.getElementById(`inp_${i}_${axis}`);
+      if (inp && document.activeElement !== inp)
+        inp.value = p[ai];
+    });
+  });
+}
+
+// ── Render loop ──────────────────────────────────────────────
+
+function renderScene() {
+  renderer.render(scene, camera);
+}
+
+function rebuildAll() {
+  buildCurve();
+  buildPolygon();
+  buildCtrlPoints();
+  buildDC();
+  syncPtInputs();
+  updateEqCard();
+  renderScene();
+}
+
+function rebuild() {
+  buildDC();
+  syncPtInputs();
+  updateEqCard();
+  renderScene();
+}
+
+// ── Controls ─────────────────────────────────────────────────
+
+document.getElementById('togPolygon')
+  .addEventListener('change', e => {
+    showPoly = e.target.checked;
+    if (objects.polygon)
+      objects.polygon.visible = showPoly;
+    renderScene();
+  });
+
+document.getElementById('togAxes')
+  .addEventListener('change', e => {
+    showAxes = e.target.checked;
+    if (objects.axesHelper)
+      objects.axesHelper.visible = showAxes;
+    if (objects.gridHelper)
+      objects.gridHelper.visible = showAxes;
+    renderScene();
+  });
+
+document.getElementById('togEquation')
+  .addEventListener('change', e => {
+    showEq = e.target.checked;
+    updateEqCard();
+  });
+
+document.getElementById('togDC')
+  .addEventListener('change', e => {
+    showDC = e.target.checked;
+    rebuild();
+  });
+
+document.getElementById('uSlider')
+  .addEventListener('input', e => {
+    u = parseFloat(e.target.value);
+    document.getElementById('uVal')
+      .textContent = u.toFixed(2);
+    rebuild();
+  });
+
+document.getElementById('btnResetView')
+  .addEventListener('click', () => {
+    orbit.reset();
+  });
+
+document.getElementById('btnResetPts')
+  .addEventListener('click', () => {
+    CTRL_PTS = DEFAULTS.map(p => [...p]);
+    buildPtInputs();
+    rebuildAll();
+  });
+
+// ── Init ─────────────────────────────────────────────────────
+
+buildAxesGrid();
+buildCurve();
+buildPolygon();
+buildCtrlPoints();
+buildDC();
+buildPtInputs();
+updateEqCard();
+orbit._apply();
+</script>
+</body>
+</html>

@@ -1,0 +1,960 @@
+% ============================================================
+% 02-bezier-sympy-code-explained.tex
+% Compile with:  pdflatex -shell-escape 02-bezier-sympy-code-explained.tex
+% Run twice for table of contents.
+% ============================================================
+
+\documentclass[12pt, a4paper]{article}
+
+% ---- Encoding & fonts ----------------------------------------
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+
+% ---- Page geometry -------------------------------------------
+\usepackage[
+  top=2.5cm, bottom=2.5cm,
+  left=2.8cm, right=2.8cm
+]{geometry}
+
+% ---- Colours -------------------------------------------------
+\usepackage[dvipsnames]{xcolor}
+\definecolor{codebg}{RGB}{248,248,248}
+\definecolor{rulecolor}{RGB}{180,180,180}
+\definecolor{examplebg}{RGB}{240,248,255}
+\definecolor{examplerule}{RGB}{100,149,237}
+\definecolor{notebg}{RGB}{255,250,230}
+\definecolor{noterule}{RGB}{210,180,50}
+\definecolor{diffbg}{RGB}{240,255,240}
+\definecolor{diffrule}{RGB}{80,160,80}
+
+% ---- Minted --------------------------------------------------
+\usepackage{minted}
+\setminted[julia]{
+  bgcolor    = codebg,
+  frame      = leftline,
+  framerule  = 1.5pt,
+  rulecolor  = rulecolor,
+  linenos    = false,
+  fontsize   = \small,
+  breaklines = true,
+  tabsize    = 4,
+  style      = friendly,
+}
+\setminted[text]{
+  bgcolor    = codebg,
+  fontsize   = \small,
+  breaklines = true,
+}
+
+% ---- Math ----------------------------------------------------
+\usepackage{amsmath}
+\usepackage{amssymb}
+
+% ---- TikZ ----------------------------------------------------
+\usepackage{tikz}
+\usetikzlibrary{shapes.geometric, arrows.meta, positioning, fit, backgrounds}
+
+% ---- Boxes ---------------------------------------------------
+\usepackage{mdframed}
+
+\newmdenv[
+  backgroundcolor  = examplebg,
+  linecolor        = examplerule, linewidth = 1.5pt,
+  leftline=true, rightline=false, topline=false, bottomline=false,
+  innerleftmargin=10pt, innerrightmargin=8pt,
+  innertopmargin=6pt, innerbottommargin=6pt,
+  skipabove=6pt, skipbelow=4pt,
+]{examplebox}
+
+\newmdenv[
+  backgroundcolor  = notebg,
+  linecolor        = noterule, linewidth = 1.5pt,
+  leftline=true, rightline=false, topline=false, bottomline=false,
+  innerleftmargin=10pt, innerrightmargin=8pt,
+  innertopmargin=6pt, innerbottommargin=6pt,
+  skipabove=6pt, skipbelow=4pt,
+]{notebox}
+
+\newmdenv[
+  backgroundcolor  = diffbg,
+  linecolor        = diffrule, linewidth = 1.5pt,
+  leftline=true, rightline=false, topline=false, bottomline=false,
+  innerleftmargin=10pt, innerrightmargin=8pt,
+  innertopmargin=6pt, innerbottommargin=6pt,
+  skipabove=6pt, skipbelow=4pt,
+]{diffbox}
+
+% ---- Hyperlinks ----------------------------------------------
+\usepackage[colorlinks=true, linkcolor=black, urlcolor=MidnightBlue]{hyperref}
+
+% ---- Misc ----------------------------------------------------
+\usepackage{booktabs}
+\usepackage{needspace}
+\usepackage{parskip}
+\usepackage{titlesec}
+\usepackage{fancyhdr}
+\usepackage{datetime2}
+
+% ---- Section formatting --------------------------------------
+\titleformat{\section}
+  {\large\bfseries\color{MidnightBlue}}
+  {\thesection.}{0.6em}{}[\vspace{-4pt}\rule{\linewidth}{0.4pt}]
+\titleformat{\subsection}
+  {\normalsize\bfseries\color{BrickRed}}
+  {\thesubsection.}{0.5em}{}
+\titleformat{\subsubsection}
+  {\normalsize\bfseries}
+  {\thesubsubsection.}{0.5em}{}
+
+% ---- Header / footer -----------------------------------------
+\pagestyle{fancy}
+\fancyhf{}
+\rhead{\textcolor{gray}{\small 02-bezier-sympy-code-explained}}
+\lhead{\textcolor{gray}{\small B\'ezier Symbolic --- Code Explanation}}
+\cfoot{\thepage}
+\renewcommand{\headrulewidth}{0.3pt}
+
+% ---- Helpers -------------------------------------------------
+\newcommand{\cd}[1]{\texttt{#1}}
+\newcommand{\NEW}{\textcolor{diffrule}{\textbf{[New]}}\;}
+
+% ---- Title ---------------------------------------------------
+\title{%
+  \vspace{1cm}
+  {\LARGE\bfseries B\'ezier Curve --- Algebraic Expansion (Symbolic)}\\[0.4em]
+  {\large Code Explanation for Julia Beginners}\\[0.4em]
+  {\normalsize\texttt{02-bezier-sympy.jl}}
+}
+\author{E.R.\ Nurwijayadi}
+\date{\DTMtoday}
+
+
+% =============================================================
+\begin{document}
+% =============================================================
+
+\maketitle
+\thispagestyle{empty}
+
+\begin{center}
+\textit{Directed and curated by E.R.\ Nurwijayadi.
+Code and explanations AI-generated.}
+\end{center}
+
+\begin{center}
+\begin{minipage}{0.85\textwidth}
+\small
+This document explains the Julia code in \cd{02-bezier-sympy.jl}
+for readers new to Julia.
+The script computes the same B\'ezier curve as \cd{01-bezier-algebra.jl}
+but replaces the hand-written \cd{Poly} type with
+\textbf{Symbolics.jl} --- Julia's computer algebra system.
+This document is fully self-contained:
+all concepts are explained from scratch even where they overlap
+with the first script.
+\end{minipage}
+\end{center}
+
+\vspace{1em}\hrule\vspace{1.5em}
+\tableofcontents
+\newpage
+
+
+% =============================================================
+\needspace{8\baselineskip}
+\section{Type Map: How the Pieces Fit Together}
+% =============================================================
+
+\textit{Script~02 has a simpler structure than Script~01.
+The hand-rolled \cd{Poly} type and all its operator overrides are gone.
+In their place stands a single call to \cd{expand()} from Symbolics.jl,
+which does the same work in one line.
+The diagram below shows what remains.}
+
+\bigskip
+
+\tikzset{
+  structbox/.style={
+    rectangle, rounded corners=4pt,
+    draw=MidnightBlue, line width=1.5pt,
+    fill=examplebg,
+    text width=3.2cm, align=center,
+    font=\small\bfseries, inner sep=8pt
+  },
+  funcbox/.style={
+    rectangle, rounded corners=2pt,
+    draw=gray!60, line width=1pt,
+    fill=white,
+    text width=3.4cm, align=center,
+    font=\small, inner sep=7pt
+  },
+  casbox/.style={
+    rectangle, rounded corners=4pt,
+    draw=diffrule, line width=1.5pt,
+    fill=diffbg,
+    text width=3.2cm, align=center,
+    font=\small\bfseries, inner sep=8pt
+  },
+  entrybox/.style={
+    rectangle, rounded corners=4pt,
+    draw=BrickRed, line width=1.5pt,
+    fill=notebg,
+    text width=2.4cm, align=center,
+    font=\small\bfseries, inner sep=8pt
+  },
+  myarrow/.style={-Stealth, thick, draw=gray!70},
+  bluearrow/.style={-Stealth, thick, draw=MidnightBlue},
+  redarrow/.style={-Stealth, thick, draw=BrickRed!80},
+  arrowlabel/.style={font=\footnotesize\itshape, fill=white, inner sep=2pt}
+}
+
+\begin{center}
+\begin{tikzpicture}[node distance=1.4cm and 2.6cm]
+
+  % -- Symbolics.jl (external CAS, top left) -----------------
+  \node[casbox] (symjl) {%
+    \texttt{Symbolics.jl}\\[3pt]
+    \footnotesize\normalfont
+    \textit{external CAS library}\\
+    \texttt{@variables u}\\
+    \texttt{expand()}\\
+    \texttt{substitute()}
+  };
+
+  % -- BezierExpansion struct (top right) --------------------
+  \node[structbox, right=3.6cm of symjl] (bezier) {%
+    \texttt{BezierExpansion}\\[3pt]
+    \footnotesize\normalfont
+    \texttt{basis::Vector}\\
+    \texttt{exprs::Dict\{String,Any\}}\\
+    \texttt{points, axes, n, degree, dim}
+  };
+
+  % -- BezierExpansion constructor + evaluate (below bezier) -
+  \node[funcbox, below=1.6cm of bezier] (bezierctr) {%
+    \texttt{BezierExpansion()}\\
+    \texttt{evaluate()}\\[2pt]
+    \footnotesize\normalfont
+    \textit{constructor + evaluator}
+  };
+
+  % -- to_exact_rational (below symjl) -----------------------
+  \node[funcbox, below=1.6cm of symjl] (ter) {%
+    \texttt{to\_exact\_rational()}\\[2pt]
+    \footnotesize\normalfont
+    \textit{Symbolics result}\\
+    \textit{to \texttt{Rational\{Int\}}}
+  };
+
+  % -- Formatting helpers (below ter) ------------------------
+  \node[funcbox, below=1.2cm of ter] (fmt) {%
+    \textbf{Formatting helpers}\\[2pt]
+    \footnotesize\normalfont
+    \texttt{fmt\_rational}\\
+    \texttt{fmt\_sym}\\
+    \texttt{fmt\_bernstein\_compact}
+  };
+
+  % -- Print functions (below bezierctr) ---------------------
+  \node[funcbox, below=1.2cm of bezierctr] (print) {%
+    \textbf{Print functions}\\[2pt]
+    \footnotesize\normalfont
+    \texttt{print\_step1} \ldots \texttt{print\_step5}\\
+    \texttt{print\_all}
+  };
+
+  % -- main (far right) --------------------------------------
+  \node[entrybox, right=2.0cm of bezier] (main) {%
+    \texttt{main()}\\[2pt]
+    \footnotesize\normalfont\normalcolor
+    \textit{entry point}
+  };
+
+  % -- Arrows ------------------------------------------------
+  \draw[bluearrow] (symjl)     -- node[arrowlabel, above]{provides} (bezier);
+  \draw[bluearrow] (bezierctr) -- node[arrowlabel, right]{builds}   (bezier);
+  \draw[myarrow]   (bezierctr) -- node[arrowlabel, left]{calls}     (symjl);
+  \draw[myarrow]   (ter)       -- node[arrowlabel, left]{reads}     (symjl);
+  \draw[myarrow]   (fmt)       -- node[arrowlabel, right]{uses}     (ter);
+  \draw[myarrow]   (print)     -- node[arrowlabel, right]{reads}    (bezierctr);
+  \draw[myarrow]   (print)     -- node[arrowlabel, above]{calls}    (fmt);
+  \draw[redarrow]  (main)      -- node[arrowlabel, above]{calls}    (bezier);
+  \draw[redarrow]  (main)      |- node[arrowlabel, right, pos=0.8]{calls} (print);
+
+\end{tikzpicture}
+\end{center}
+
+\bigskip
+
+\begin{notebox}
+\textbf{Key difference from Script~01.}
+Script~01 had a \cd{Poly} struct with overridden operators
+(\cd{*}, \cd{+}, \cd{(p)(u)}) sitting between the constructor
+and the results.
+Here, \textbf{Symbolics.jl} (green box) replaces all of that.
+\cd{expand()} does what \cd{expand\_bernstein} did.
+\cd{substitute()} does what \cd{(p)(u)} did.
+The arrow from \cd{BezierExpansion()} directly to Symbolics.jl
+shows that the CAS is the new computation engine.
+\end{notebox}
+
+
+% =============================================================
+\needspace{8\baselineskip}
+\section{Imports and the Symbolic Variable}
+% =============================================================
+
+\begin{minted}{julia}
+using Symbolics
+using Printf
+
+@variables u
+\end{minted}
+
+\needspace{5\baselineskip}
+\subsection{\texttt{using Symbolics}}
+
+\cd{using Symbolics} loads the Symbolics.jl package ---
+Julia's built-in computer algebra system.
+It provides the ability to work with symbolic mathematical
+expressions: polynomials, equations, and expressions
+containing variables like \cd{u} that have no fixed numeric value.
+
+\needspace{5\baselineskip}
+\subsection{\texttt{@variables u} --- creating a symbolic variable}
+
+\cd{@variables u} is a \textbf{macro} call.
+In Julia, macros begin with \cd{@} and transform code
+before it runs.
+This particular macro, provided by Symbolics.jl,
+declares \cd{u} as a \textbf{symbolic variable}.
+
+After this line, \cd{u} is not a number.
+It is a placeholder --- a name that represents an unknown value.
+You can build expressions with it:
+
+\begin{examplebox}
+\begin{minted}{julia}
+@variables u
+expr = 3*u^2 - 6*u + 1
+\end{minted}
+
+\cd{expr} is now the symbolic expression $3u^2 - 6u + 1$.
+Julia does not compute a number --- it holds the expression
+as a symbolic object.
+
+You can then substitute a value later:
+\begin{minted}{julia}
+substitute(expr, Dict(u => 1//2))
+\end{minted}
+This gives the exact rational result $3 \cdot \tfrac{1}{4} - 6 \cdot \tfrac{1}{2} + 1 = \tfrac{3}{4} - 3 + 1 = -\tfrac{5}{4}$.
+\end{examplebox}
+
+\begin{notebox}
+\textbf{Why a macro and not a function?}
+
+A regular function call like \cd{declare\_variable("u")} would
+create a variable with that string name, but you could not then
+write \cd{u} in your code and have Julia know you mean that variable.
+The macro \cd{@variables u} rewrites the source code so that
+the Julia identifier \cd{u} is bound to a symbolic object.
+That is something only a macro can do --- it operates on the
+code itself before the program runs.
+\end{notebox}
+
+
+% =============================================================
+\needspace{8\baselineskip}
+\section{Exact Arithmetic: \texttt{Rational\{Int\}}}
+% =============================================================
+
+\begin{minted}{julia}
+const CASE_DATA = Dict(
+    2 => (
+        points   = Rational{Int}[0 0 1;
+                                  0 4 1;
+                                  4 0 1;
+                                  4 4 1;
+                                  5 4 1],
+        u_values = Rational{Int}[0, 1//4, 1//2, 3//4, 1],
+        axes     = ["x", "y", "z"],
+    ),
+)
+\end{minted}
+
+\needspace{5\baselineskip}
+\subsection{What is \texttt{Rational\{Int\}}?}
+
+\cd{Rational\{Int\}} is Julia's built-in type for exact fractions.
+It stores a numerator and denominator as plain integers,
+with no floating-point representation involved.
+
+The \cd{//} operator creates a \cd{Rational\{Int\}} value:
+
+\begin{examplebox}
+\begin{tabular}{lll}
+\toprule
+Expression & Value & Type \\
+\midrule
+\cd{1//4}  & $\frac{1}{4}$   & \cd{Rational\{Int\}} \\
+\cd{3//4}  & $\frac{3}{4}$   & \cd{Rational\{Int\}} \\
+\cd{4//1}  & $4$             & \cd{Rational\{Int\}} (same as integer 4, but exact) \\
+\cd{1//3}  & $\frac{1}{3}$   & \cd{Rational\{Int\}} --- no rounding, ever \\
+\bottomrule
+\end{tabular}
+
+\medskip
+Compare: \cd{Float64(1/3) = 0.3333333333333333} (rounded).
+\cd{1//3} is exact.
+\end{examplebox}
+
+\needspace{5\baselineskip}
+\subsection{The typed array literal \texttt{Rational\{Int\}[...]}}
+
+Writing \cd{Rational\{Int\}[0 0 1; 0 4 1; ...]} tells Julia
+to create a matrix where every element is stored as
+\cd{Rational\{Int\}}, even though the values look like plain integers.
+So \cd{4} is stored as \cd{4//1}, not as \cd{Int64(4)} or
+\cd{Float64(4.0)}.
+
+This matters because all arithmetic that follows --- multiplying
+coordinates by basis polynomials, summing terms --- will stay
+in exact rational form throughout.
+No floating-point error can creep in.
+
+\needspace{5\baselineskip}
+\subsection{Why exact arithmetic matters here}
+
+The Bernstein basis coefficients are binomial coefficients
+(always integers).
+The control point coordinates are whole numbers stored as
+\cd{Rational\{Int\}}.
+The $u$ values are simple fractions: $0, \tfrac{1}{4}, \tfrac{1}{2},
+\tfrac{3}{4}, 1$.
+
+All of these are rational numbers.
+Their polynomial combinations are therefore also rational numbers.
+Script~02 \emph{computes} and \emph{displays} those exact fractions
+--- for example $\frac{269}{256}$ --- rather than approximating
+them as \cd{1.050781}.
+
+\begin{diffbox}
+\textbf{Compared to Script~01:}
+Script~01 stored coordinates as \cd{Float64} and all arithmetic
+was floating-point.
+Script~02 stores coordinates as \cd{Rational\{Int\}} and all
+arithmetic is exact integer fraction arithmetic.
+The decimal output at the end is the same, but the
+path to get there is fundamentally different.
+\end{diffbox}
+
+
+% =============================================================
+\needspace{8\baselineskip}
+\section{The \texttt{BezierExpansion} Struct}
+% =============================================================
+
+\begin{minted}{julia}
+struct BezierExpansion
+    points  ::Matrix{Rational{Int}}
+    axes    ::Vector{String}
+    n       ::Int
+    degree  ::Int
+    dim     ::Int
+    basis   ::Vector        # symbolic expressions per B(n,i,u)
+    exprs   ::Dict{String,Any}  # collected symbolic expr per axis
+end
+\end{minted}
+
+Compare this to Script~01's struct:
+
+\begin{diffbox}
+\textbf{What changed in the struct:}
+
+\medskip
+\begin{tabular}{lll}
+\toprule
+Field & Script~01 & Script~02 \\
+\midrule
+\cd{points} & \cd{Matrix\{Float64\}} & \cd{Matrix\{Rational\{Int\}\}} \\
+\cd{basis}  & \cd{Vector\{Poly\}}    & \cd{Vector} (untyped --- holds Symbolics expressions) \\
+\cd{polys}  & \cd{Dict\{String,Poly\}} & renamed to \cd{exprs::Dict\{String,Any\}} \\
+\bottomrule
+\end{tabular}
+
+\medskip
+The fields \cd{axes}, \cd{n}, \cd{degree}, \cd{dim} are identical.
+\end{diffbox}
+
+\needspace{5\baselineskip}
+\subsection{Why \texttt{Vector} and \texttt{Dict\{String,Any\}}?}
+
+In Script~01, \cd{basis} was \cd{Vector\{Poly\}} --- a vector
+where every element is a \cd{Poly} object, a type we defined ourselves.
+
+In Script~02, \cd{basis} is just \cd{Vector} with no type parameter,
+and \cd{exprs} values are \cd{Any}.
+This is because Symbolics.jl expressions have complex internal types
+that are awkward to name explicitly.
+Saying \cd{Any} tells Julia: ``I don't want to restrict the type here,
+accept whatever Symbolics.jl returns.''
+
+This is less strict than Script~01, but it is the practical
+approach when working with a CAS whose expression types
+are not simple to predict.
+
+
+% =============================================================
+\needspace{8\baselineskip}
+\section{The \texttt{BezierExpansion} Constructor}
+% =============================================================
+
+\begin{minted}{julia}
+function BezierExpansion(points::Matrix{Rational{Int}},
+                         axes::Vector{String})
+    n   = size(points, 1)
+    deg = n - 1
+    dim = length(axes)
+
+    basis = [
+        expand(binomial(deg, i) * u^i * (1 - u)^(deg - i))
+        for i in 0:n-1
+    ]
+
+    exprs = Dict{String,Any}()
+    for (dim_idx, axis) in enumerate(axes)
+        expr = sum(basis[i+1] * points[i+1, dim_idx] for i in 0:n-1)
+        exprs[axis] = expand(expr)
+    end
+
+    BezierExpansion(points, axes, n, deg, dim, basis, exprs)
+end
+\end{minted}
+
+This constructor does in about ten lines what Script~01 did
+with \cd{expand\_bernstein}, \cd{Poly +}, \cd{Poly *}, and the
+\cd{BezierExpansion} constructor combined.
+The CAS absorbs all of that complexity.
+
+\needspace{5\baselineskip}
+\subsection{Building the basis: \texttt{expand()}}
+
+\begin{minted}{julia}
+basis = [
+    expand(binomial(deg, i) * u^i * (1 - u)^(deg - i))
+    for i in 0:n-1
+]
+\end{minted}
+
+This is a \textbf{list comprehension} --- it evaluates the
+expression in brackets for each value of \cd{i} from \cd{0}
+to \cd{n-1} and collects the results into a vector.
+
+For each \cd{i}, it builds the Bernstein polynomial
+$B(n, i, u) = \binom{n}{i}\,u^i\,(1-u)^{n-i}$ symbolically,
+then calls \cd{expand()} to distribute and collect all terms.
+
+\begin{examplebox}
+\textbf{For $n=4$ (quartic), $i=2$:}
+
+\begin{minted}{julia}
+expand(binomial(4, 2) * u^2 * (1 - u)^2)
+\end{minted}
+
+\cd{binomial(4, 2) = 6} (Julia built-in, exact integer)
+
+The expression before expanding: $6 \cdot u^2 \cdot (1-u)^2$
+
+After \cd{expand()}: $6u^2 - 12u^3 + 6u^4$
+
+Symbolics.jl returns this as a symbolic expression object.
+In Script~01, the same result came from \cd{expand\_bernstein(4, 2)},
+which did the binomial expansion manually step by step.
+Here, one call to \cd{expand()} handles everything.
+\end{examplebox}
+
+\needspace{5\baselineskip}
+\subsection{Building per-axis polynomials}
+
+\begin{minted}{julia}
+exprs = Dict{String,Any}()
+for (dim_idx, axis) in enumerate(axes)
+    expr = sum(basis[i+1] * points[i+1, dim_idx] for i in 0:n-1)
+    exprs[axis] = expand(expr)
+end
+\end{minted}
+
+For each axis, it computes the weighted sum of all basis polynomials,
+each multiplied by the corresponding coordinate.
+
+\cd{sum(...for i in 0:n-1)} is Julia's generator sum syntax:
+it accumulates $\sum_{i=0}^{n-1} B_i \cdot \text{coord}_i$
+without building an intermediate array.
+
+The final \cd{expand(expr)} collects all like powers of \cd{u}
+into a clean monomial polynomial.
+
+\begin{examplebox}
+\textbf{For the $x$ axis, Case~2:}
+
+$x$-coordinates are $0, 0, 4, 4, 5$.
+
+\[
+  \text{expr} = B_0 \cdot 0 + B_1 \cdot 0 + B_2 \cdot 4 + B_3 \cdot 4 + B_4 \cdot 5
+\]
+
+After \cd{expand()}:
+\[
+  x(u) = 24u^2 - 32u^3 + 13u^4
+\]
+
+Stored as \cd{exprs["x"]} --- a Symbolics expression,
+not a \cd{Poly} object.
+\end{examplebox}
+
+
+% =============================================================
+\needspace{8\baselineskip}
+\section{The \texttt{evaluate} Function}
+% =============================================================
+
+\begin{minted}{julia}
+function evaluate(exp::BezierExpansion, u_val::Rational{Int})
+    [substitute(exp.exprs[ax], Dict(u => u_val)) for ax in exp.axes]
+end
+\end{minted}
+
+\cd{substitute(expr, Dict(u => u\_val))} is the Symbolics.jl
+way of evaluating a symbolic expression at a specific value.
+It replaces every occurrence of the symbolic variable \cd{u}
+with the given rational value \cd{u\_val}.
+
+The \cd{Dict(u => u\_val)} syntax creates a substitution map:
+``replace \cd{u} with \cd{u\_val}.''
+
+\begin{examplebox}
+\textbf{Evaluating $x(u)$ at $u = \tfrac{1}{2}$:}
+
+\begin{minted}{julia}
+substitute(exprs["x"], Dict(u => 1//2))
+\end{minted}
+
+This replaces $u$ with $\tfrac{1}{2}$ in $24u^2 - 32u^3 + 13u^4$:
+\[
+  24 \cdot \tfrac{1}{4} - 32 \cdot \tfrac{1}{8} + 13 \cdot \tfrac{1}{16}
+  = 6 - 4 + \tfrac{13}{16} = \tfrac{45}{16}
+\]
+
+The result is a Symbolics expression representing $\tfrac{45}{16}$.
+It is not yet a plain Julia \cd{Rational\{Int\}} ---
+that conversion happens in \cd{to\_exact\_rational()}.
+\end{examplebox}
+
+\begin{diffbox}
+\textbf{Compared to Script~01:}
+Script~01 evaluated a polynomial by calling \cd{(p)(u\_val)},
+which used Horner's method on the \cd{Float64} coefficient vector.
+Script~02 calls \cd{substitute()}, which is symbolic substitution
+--- the CAS replaces the variable and simplifies algebraically.
+The result is an exact rational, not a float.
+\end{diffbox}
+
+
+% =============================================================
+\needspace{8\baselineskip}
+\section{Formatting Helpers}
+% =============================================================
+
+\needspace{5\baselineskip}
+\subsection{\texttt{fmt\_rational} --- multiple dispatch on two types}
+
+\begin{minted}{julia}
+fmt_rational(r::Rational{Int}) =
+    isone(denominator(r)) ? string(numerator(r)) : string(r)
+fmt_rational(n::Integer) = string(n)
+\end{minted}
+
+This is a compact example of \textbf{multiple dispatch}:
+two methods with the same name but different argument types.
+Julia picks the right one based on what you pass in.
+
+\textbf{First method} handles a \cd{Rational\{Int\}}:
+\begin{itemize}
+  \item \cd{denominator(r)} returns the bottom of the fraction.
+  \item \cd{isone(denominator(r))} checks if it equals 1.
+  \item If the denominator is 1, the fraction is a whole number ---
+        print just the numerator (e.g.\ \cd{"4"} not \cd{"4//1"}).
+  \item Otherwise print the full fraction (e.g.\ \cd{"269//256"}).
+\end{itemize}
+
+\textbf{Second method} handles any plain \cd{Integer}
+(like \cd{Int64}): just convert to string directly.
+
+\begin{examplebox}
+\cd{fmt\_rational(4//1)}    $\to$ \cd{"4"} \quad (denominator is 1, so whole number) \\
+\cd{fmt\_rational(269//256)} $\to$ \cd{"269//256"} \quad (denominator is 256) \\
+\cd{fmt\_rational(5)}       $\to$ \cd{"5"} \quad (plain integer, second method)
+\end{examplebox}
+
+\needspace{5\baselineskip}
+\subsection{\texttt{fmt\_sym} --- formatting a Symbolics expression}
+
+\begin{minted}{julia}
+fmt_sym(expr) = string(expr)
+\end{minted}
+
+This one-liner converts any Symbolics.jl expression to a
+human-readable string.
+It has no type annotation on \cd{expr} ---
+it accepts anything and calls Julia's built-in \cd{string()}
+on it, which Symbolics.jl has extended to produce readable output.
+
+This is how \cd{(24//1)*(u\^{}2) - (32//1)*(u\^{}3) + (13//1)*(u\^{}4)}
+ends up in the printed output.
+
+\needspace{5\baselineskip}
+\subsection{\texttt{to\_exact\_rational} --- converting a CAS result to a fraction}
+
+\begin{minted}{julia}
+function to_exact_rational(val)
+    v = Symbolics.value(val)
+    try
+        r = rationalize(Int, Float64(v); tol=1e-12)
+        return r
+    catch
+        return v
+    end
+end
+\end{minted}
+
+After \cd{substitute()} returns a Symbolics expression like
+\cd{45//16}, this function extracts the plain Julia
+\cd{Rational\{Int\}} value from it.
+This is needed because Symbolics.jl wraps even simple
+numeric results in its own expression type, and we want
+a plain fraction we can format and convert to \cd{Float64}.
+
+The steps are:
+\begin{enumerate}
+  \item \cd{Symbolics.value(val)} --- strips the Symbolics wrapper,
+        returning a lower-level numeric type.
+  \item \cd{Float64(v)} --- converts to a float temporarily.
+  \item \cd{rationalize(Int, ...; tol=1e-12)} --- converts the
+        float back to the nearest \cd{Rational\{Int\}} within
+        a tolerance of $10^{-12}$. This recovers the exact
+        fraction, since the float was exact to begin with
+        (it came from rational arithmetic).
+  \item The \cd{try/catch} handles any edge cases where the
+        conversion fails --- in that case the raw value \cd{v}
+        is returned as-is.
+\end{enumerate}
+
+\begin{examplebox}
+\textbf{Tracing \cd{to\_exact\_rational} for $x\!\left(\tfrac{1}{2}\right)$:}
+
+\medskip
+After \cd{substitute}, \cd{val} is a Symbolics expression
+representing $\tfrac{45}{16}$.
+
+\cd{Symbolics.value(val)} $\to$ a SymbolicUtils numeric for $2.8125$
+
+\cd{Float64(v)} $\to$ \cd{2.8125}
+
+\cd{rationalize(Int, 2.8125; tol=1e-12)} $\to$ \cd{45//16}
+
+Result: \cd{45//16} as a plain Julia \cd{Rational\{Int\}}.
+\end{examplebox}
+
+\begin{notebox}
+\textbf{Why go through Float64 and back?}
+
+It seems roundabout to convert a rational to float and then
+back to rational.
+The reason is that \cd{Symbolics.value()} does not always
+return a type with a direct \cd{Rational} conversion path ---
+going through \cd{Float64} and \cd{rationalize} is the
+reliable general approach.
+For the values in this program (small integer fractions),
+the round-trip is exact.
+\end{notebox}
+
+\needspace{5\baselineskip}
+\subsection{\texttt{fmt\_bernstein\_compact}}
+
+\begin{minted}{julia}
+const SUPERSCRIPTS = Dict(0=>"", 1=>"", 2=>"^2", 3=>"^3",
+                          4=>"^4", 5=>"^5")
+
+function fmt_bernstein_compact(n::Int, i::Int)
+    b      = binomial(n, i)
+    m      = n - i
+    u_part = i == 0 ? "" : (i == 1 ? "u" : "u$(get(SUPERSCRIPTS,i,"^$i"))")
+    v_part = m == 0 ? "" : (m == 1 ? "(1-u)" :
+                            "(1-u)$(get(SUPERSCRIPTS,m,"^$m"))")
+    b_str  = b == 1 ? "" : string(b)
+    result = "$(b_str)$(u_part)$(v_part)"
+    isempty(result) ? "1" : result
+end
+\end{minted}
+
+This produces compact human-readable symbolic strings like
+\cd{"6u\^{}2(1-u)\^{}2"} for the print steps.
+It is structurally identical to \cd{fmt\_bernstein\_symbolic}
+in Script~01, with one extra guard at the end:
+\cd{isempty(result) ? "1" : result}.
+This handles the edge case $B(0,0,u) = 1$, which would
+otherwise produce an empty string.
+
+\begin{examplebox}
+\begin{tabular}{lll}
+\toprule
+Call & Formula & Output \\
+\midrule
+\cd{fmt\_bernstein\_compact(4, 0)} & $(1-u)^4$        & \cd{"(1-u)\^{}4"} \\
+\cd{fmt\_bernstein\_compact(4, 1)} & $4u(1-u)^3$      & \cd{"4u(1-u)\^{}3"} \\
+\cd{fmt\_bernstein\_compact(4, 2)} & $6u^2(1-u)^2$    & \cd{"6u\^{}2(1-u)\^{}2"} \\
+\cd{fmt\_bernstein\_compact(4, 4)} & $u^4$            & \cd{"u\^{}4"} \\
+\bottomrule
+\end{tabular}
+\end{examplebox}
+
+
+% =============================================================
+\needspace{8\baselineskip}
+\section{Print Step Functions}
+% =============================================================
+
+\textit{The five print step functions in Script~02 do exactly
+the same job as in Script~01 --- they display the five stages
+of the algebraic expansion.
+The structure of each function is identical.
+What changed is which fields they read from \cd{exp}
+and which formatting helpers they call.}
+
+\needspace{5\baselineskip}
+\subsection{What is the same}
+
+All five functions follow the same pattern:
+call \cd{print\_step\_header}, loop over axes and/or control
+points, call a formatting helper, call \cd{println}.
+None of them return a value.
+
+\begin{center}
+\begin{tabular}{lp{5cm}p{5cm}}
+\toprule
+Step & Script~01 source & Script~02 source \\
+\midrule
+Step~1 & \cd{fmt\_bernstein\_symbolic} & \cd{fmt\_bernstein\_compact} \\
+Step~2 & \cd{fmt\_bernstein\_symbolic} + \cd{fmt\_coeff} & \cd{fmt\_bernstein\_compact} + \cd{fmt\_rational} \\
+Step~3 & \cd{fmt\_poly(exp.basis[i+1])} & \cd{fmt\_sym(exp.basis[i+1])} \\
+Step~4 & \cd{expand(basis[i]*coord)} via \cd{Poly*} & \cd{expand(exp.basis[i]*coord)} via Symbolics \\
+Step~5 & \cd{evaluate} returns \cd{Float64} & \cd{evaluate} returns Symbolics expr, then \cd{to\_exact\_rational} \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\needspace{5\baselineskip}
+\subsection{Step 5: the new evaluation loop}
+
+The evaluation loop in Step~5 is the most changed part:
+
+\begin{minted}{julia}
+for u_val in u_values
+    results = evaluate(exp, u_val)
+    row = "  " * lpad(fmt_rational(u_val), col_u)
+    for val in results
+        r     = to_exact_rational(val)
+        exact = fmt_rational(r)
+        dec   = @sprintf("%.6f", Float64(r))
+        row  *= "  " * lpad(exact, col_exact) *
+                "  " * lpad(dec, col_dec)
+    end
+    println(row)
+end
+\end{minted}
+
+For each \cd{u\_val}, it calls \cd{evaluate} (which calls
+\cd{substitute} internally), then for each result:
+
+\begin{enumerate}
+  \item \cd{to\_exact\_rational(val)} --- extract the exact fraction
+  \item \cd{fmt\_rational(r)} --- format as \cd{"45//16"} or \cd{"5"}
+  \item \cd{Float64(r)} --- convert to decimal for the second column
+\end{enumerate}
+
+This produces the two-column output (exact + decimal) that
+distinguishes Script~02's evaluation table from Script~01's.
+
+\begin{examplebox}
+\textbf{One row traced: $u = \tfrac{1}{4}$}
+
+\medskip
+\cd{fmt\_rational(1//4)} $\to$ \cd{"1//4"} (printed in the $u$ column)
+
+For the $x$ axis:
+\begin{enumerate}
+  \item \cd{evaluate} calls \cd{substitute(exprs["x"], Dict(u => 1//4))}
+        $\to$ Symbolics result for $\tfrac{269}{256}$
+  \item \cd{to\_exact\_rational} extracts \cd{269//256}
+  \item \cd{fmt\_rational(269//256)} $\to$ \cd{"269//256"}
+  \item \cd{Float64(269//256)} $\to$ \cd{1.05078125} $\to$ \cd{"1.050781"}
+\end{enumerate}
+Row printed: \cd{1//4 \quad 269//256 \quad 1.050781 \quad ...}
+\end{examplebox}
+
+
+% =============================================================
+\needspace{8\baselineskip}
+\section{Summary: What Symbolics.jl Replaced}
+% =============================================================
+
+\begin{center}
+\begin{tabular}{p{5cm}p{5cm}}
+\toprule
+Script~01 (hand-written) & Script~02 (Symbolics.jl) \\
+\midrule
+\cd{struct Poly} with \cd{coeffs::Vector\{Float64\}} &
+  Symbolics expression (no separate type) \\[4pt]
+\cd{Poly * scalar} (operator override) &
+  \cd{expr * coord} (Symbolics handles \cd{*}) \\[4pt]
+\cd{Poly + Poly} (operator override, zero-padding) &
+  \cd{expr + expr} (Symbolics handles \cd{+}) \\[4pt]
+\cd{expand\_bernstein(n, i)} (manual binomial steps) &
+  \cd{expand(binomial(n,i) * u\^{}i * (1-u)\^{}m)} \\[4pt]
+\cd{(p)(u)} functor via Horner's method &
+  \cd{substitute(expr, Dict(u => val))} \\[4pt]
+\cd{Float64} results &
+  \cd{Rational\{Int\}} exact fractions \\[4pt]
+One column per axis in evaluation table &
+  Two columns: exact fraction + decimal \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\begin{notebox}
+\textbf{Which is better?}
+
+Neither --- they make different trade-offs.
+
+Script~01 is self-contained: it needs no external library,
+every operation is explicit and transparent, and it is easy
+to follow step by step.
+
+Script~02 is more powerful: it produces exact results,
+handles any rational input without rounding, and the
+constructor is dramatically shorter because the CAS
+absorbs all the polynomial algebra.
+
+\textit{Script~01 teaches you how the engine works.
+Script~02 lets you use the engine without building it.
+Both are worth understanding.}
+\end{notebox}
+
+\vspace{2em}\hrule\vspace{0.5em}
+{\small\textcolor{gray}{%
+Code explanation for \texttt{02-bezier-sympy.jl}
+\textbar{} Directed and curated by E.R.\ Nurwijayadi
+\textbar{} Code and explanations AI-generated}}
+
+\end{document}

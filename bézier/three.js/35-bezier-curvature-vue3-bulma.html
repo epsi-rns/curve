@@ -1,0 +1,905 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bezier Curves — Curvature</title>
+  <link rel="stylesheet" href="bulma.min.css">
+  <link rel="stylesheet" href="32-styles.css">
+  <script src="vue.global.prod.js"></script>
+  <script src="three.min.js"></script>
+</head>
+
+<body>
+  <div class="page-header">
+    <h1><code>Bezier Curves</code></h1>
+    <span id="page-subtitle">// curvature</span>
+  </div>
+
+  <div id="app" class="workspace">
+
+    <!-- Viewport -->
+    <div class="viewport-wrap">
+      <canvas id="threeCanvas"></canvas>
+      <div class="hint-3d" v-show="caseKey === 'c2'">
+        Left-drag: orbit &nbsp;|&nbsp; Right-drag: pan &nbsp;|&nbsp; Scroll: zoom
+      </div>
+    </div>
+
+    <!-- Sidebar -->
+    <div class="sidebar">
+
+      <!-- Case selector -->
+      <div class="card">
+        <div class="card-header">
+          <p class="card-header-title">Case</p>
+        </div>
+        <div class="card-content" style="padding: 12px 16px;">
+          <div class="buttons has-addons" style="width:100%; margin-bottom:0;">
+            <button class="button case-btn" :class="caseKey==='c1' ? 'is-link is-selected' : ''" @click="switchCase('c1')">
+              Case 1 — Quadratic 2D
+            </button>
+            <button class="button case-btn" :class="caseKey==='c2' ? 'is-link is-selected' : ''" @click="switchCase('c2')">
+              Case 2 — Quartic 3D
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Display toggles + u slider -->
+      <div class="card">
+        <div class="card-header">
+          <p class="card-header-title">Display</p>
+        </div>
+        <div class="card-content" style="padding: 14px 16px;">
+
+          <div class="toggle-row" v-for="tog in toggles" :key="tog.key">
+            <span style="font-size:0.875rem; color:var(--label);">{{ tog.label }}</span>
+            <label class="toggle-switch">
+              <input type="checkbox" v-model="tog.value" @change="onToggle(tog)">
+              <div class="toggle-track" :class="{ on: tog.value }">
+                <div class="toggle-thumb" :class="{ on: tog.value }"></div>
+              </div>
+            </label>
+          </div>
+
+          <div style="margin-top: 1rem;">
+            <div class="u-row">
+              <label><code>u</code> — Parameter</label>
+              <span class="u-badge">{{ u.toFixed(2) }}</span>
+            </div>
+            <input type="range" min="0" max="1" step="0.01" v-model.number="u" @input="rebuild">
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Control points -->
+      <div class="card">
+        <div class="card-header">
+          <p class="card-header-title">Control Points</p>
+        </div>
+        <div class="card-content" style="padding: 14px 16px;">
+
+          <!-- Column headers — shown for 3D only -->
+          <div v-if="caseKey==='c2'" class="pt-xyz-labels" :style="ptGridStyle">
+            <span></span><span></span>
+            <span>x</span><span>y</span><span>z</span>
+          </div>
+          <div v-else class="pt-xyz-labels" :style="ptGridStyle">
+            <span></span><span></span>
+            <span>x</span><span>y</span>
+          </div>
+
+          <div class="pt-row" v-for="(pt, i) in ctrlPts" :key="i" :style="ptGridStyle">
+            <div class="pt-dot" :style="{ background: currentCase.ptColors[i] }"></div>
+            <code style="font-size:0.74rem;">{{ currentCase.ptNames[i] }}</code>
+            <input class="input is-small" type="number" step="0.5" placeholder="x"
+              :value="pt[0]" @change="setPt(i, 0, $event.target.value)">
+            <input class="input is-small" type="number" step="0.5" placeholder="y"
+              :value="pt[1]" @change="setPt(i, 1, $event.target.value)">
+            <input v-if="caseKey==='c2'" class="input is-small" type="number" step="0.5" placeholder="z"
+              :value="pt[2]" @change="setPt(i, 2, $event.target.value)">
+          </div>
+
+          <small>Type to edit · Enter or Tab to apply</small>
+        </div>
+      </div>
+
+    </div><!-- sidebar -->
+
+    <!-- Sidebar -->
+    <div class="sidebar">
+
+      <!-- Equation -->
+      <div class="card" v-show="showEq">
+        <div class="card-header">
+          <p class="card-header-title">Equation</p>
+        </div>
+        <div class="card-content" style="padding: 14px 16px;">
+          <div class="eq-box" v-html="eqHtml"></div>
+        </div>
+      </div>
+
+      <!-- Legend -->
+      <div class="card">
+        <div class="card-header">
+          <p class="card-header-title">Legend</p>
+        </div>
+        <div class="card-content" style="padding: 14px 16px;">
+          <div class="legend">
+            <div class="legend-item"><div class="leg-swatch" style="background:#2563eb"></div>Bezier Curve</div>
+            <div class="legend-item"><div class="leg-dash"   style="border-color:#e11d48"></div>Control Polygon</div>
+            <template v-if="caseKey==='c1'">
+              <div class="legend-item"><div class="leg-swatch" style="background:#ea580c"></div>DC L1 — Q0, Q1</div>
+              <div class="legend-item"><div class="leg-diamond" style="background:#16a34a"></div>DC L2 — R0 (curve point)</div>
+              <div class="legend-item"><div class="leg-dash" style="border-color:#90a4ae"></div>Curvature Comb</div>
+            </template>
+            <template v-else>
+              <div class="legend-item"><div class="leg-swatch" style="background:#f59e0b"></div>DC L1 — Q0..Q3</div>
+              <div class="legend-item"><div class="leg-swatch" style="background:#ec4899"></div>DC L2 — R0..R2</div>
+              <div class="legend-item"><div class="leg-swatch" style="background:#8b5cf6"></div>DC L3 — S0, S1</div>
+              <div class="legend-item"><div class="leg-diamond" style="background:#16a34a"></div>DC L4 — T0 (curve point)</div>
+              <div class="legend-item"><div class="leg-dash" style="border-color:#90a4ae"></div>Curvature Comb</div>
+            </template>
+          </div>
+        </div>
+      </div>
+
+      <!-- Buttons -->
+      <div class="buttons">
+        <button v-if="caseKey==='c2'" class="button is-light" style="flex:1;" @click="resetView">&#8635; View</button>
+        <button class="button is-light" style="flex:1;" @click="resetPts">&#8635; Points</button>
+      </div>
+
+    </div><!-- sidebar -->
+  </div><!-- app -->
+
+  <script>
+  // =============================================================
+  // BezierMath — generic, any degree, any dimension
+  // =============================================================
+  class BezierMath {
+
+    // Lerp between two points of any dimension
+    static lerp(a, b, t) {
+      return a.map((v, i) => (1-t)*v + t*b[i]);
+    }
+
+    // One De Casteljau reduction: n points -> n-1 points
+    static reduce(pts, t) {
+      const out = [];
+      for (let i = 0; i < pts.length - 1; i++)
+        out.push(this.lerp(pts[i], pts[i+1], t));
+      return out;
+    }
+
+    // All DC levels: returns array of arrays, level[0]=original ... level[n]=final
+    static decasteljau(pts, t) {
+      const levels = [pts];
+      let cur = pts;
+      while (cur.length > 1) {
+        cur = this.reduce(cur, t);
+        levels.push(cur);
+      }
+      return levels;
+    }
+
+    // Evaluate point on curve at t
+    static point(pts, t) {
+      return this.decasteljau(pts, t).at(-1)[0];
+    }
+
+    // Derivative control points: Q_i = n * (P_{i+1} - P_i)
+    static derivative(pts) {
+      const n = pts.length - 1;
+      const out = [];
+      for (let i = 0; i < n; i++)
+        out.push(pts[i].map((v, k) => n * (pts[i+1][k] - v)));
+      return out;
+    }
+
+    // Curvature κ(u) = |P' x P''| / |P'|^3
+    // Works for 2D (scalar cross) and 3D (vector cross norm)
+    static curvature(pts, u) {
+      const d1pts = this.derivative(pts);
+      const d2pts = d1pts.length > 1 ? this.derivative(d1pts) : null;
+      const d1 = this.point(d1pts, u);
+      const d2 = d2pts ? this.point(d2pts, u) : d1.map(() => 0);
+      const dim = d1.length;
+      let cross;
+      if (dim === 2) {
+        cross = Math.abs(d1[0]*d2[1] - d1[1]*d2[0]);
+      } else {
+        // 3D cross product norm
+        const cx = d1[1]*d2[2] - d1[2]*d2[1];
+        const cy = d1[2]*d2[0] - d1[0]*d2[2];
+        const cz = d1[0]*d2[1] - d1[1]*d2[0];
+        cross = Math.sqrt(cx*cx + cy*cy + cz*cz);
+      }
+      const speed = Math.sqrt(d1.reduce((s, v) => s + v*v, 0));
+      return speed > 1e-10 ? cross / (speed * speed * speed) : 0;
+    }
+
+    static fmt(v) {
+      return parseFloat(v.toFixed(3)).toString();
+    }
+
+    static buildPoly(coeffs, sups) {
+      let s = '', first = true;
+      coeffs.forEach((c, i) => {
+        if (Math.abs(c) < 1e-9) return;
+        const sign = c < 0 ? (first ? '-' : ' - ') : (first ? '' : ' + ');
+        s += sign + this.fmt(Math.abs(c)) + sups[i];
+        first = false;
+      });
+      return s || '0';
+    }
+
+    // Derive monomial equations — degree-aware, 2D or 3D
+    static deriveEquation(pts, u) {
+      const deg  = pts.length - 1;
+      const dim  = pts[0].length;
+      const sups = ['u\u2074','u\u00B3','u\u00B2','u',''].slice(4 - deg);
+
+      // Bernstein -> monomial via Pascal triangle for any degree
+      // Uses the fact that monomial coeffs = sum_i B(n,i)*(-1)^(k-i)*C(k,i)*P_i for each power k
+      function monomialCoeffs(coords) {
+        const n = deg;
+        const c = new Array(n + 1).fill(0);
+        for (let k = 0; k <= n; k++) {
+          let sum = 0;
+          for (let i = 0; i <= k; i++) {
+            const binom_n_i = factorial(n) / (factorial(i) * factorial(n-i));
+            const binom_k_i = factorial(k) / (factorial(i) * factorial(k-i));
+            sum += binom_n_i * binom_k_i * Math.pow(-1, k-i) * coords[i];
+          }
+          c[n - k] = sum;
+        }
+        return c;
+      }
+
+      function factorial(n) {
+        if (n <= 1) return 1;
+        let r = 1; for (let i = 2; i <= n; i++) r *= i; return r;
+      }
+
+      function evalPoly(c, t) {
+        return c.reduce((acc, coef, i) => acc + coef * Math.pow(t, deg - i), 0);
+      }
+
+      const xc = monomialCoeffs(pts.map(p => p[0]));
+      const yc = monomialCoeffs(pts.map(p => p[1]));
+      const zc = dim === 3 ? monomialCoeffs(pts.map(p => p[2])) : null;
+
+      return {
+        xEq: this.buildPoly(xc, sups),
+        yEq: this.buildPoly(yc, sups),
+        zEq: zc ? this.buildPoly(zc, sups) : null,
+        xAt: evalPoly(xc, u),
+        yAt: evalPoly(yc, u),
+        zAt: zc ? evalPoly(zc, u) : null,
+      };
+    }
+  }
+
+  // =============================================================
+  // BezierScene — Three.js renderer for both 2D and 3D cases
+  // =============================================================
+  class BezierScene {
+
+    constructor(canvas) {
+      this.canvas = canvas;
+      this.W = 700;
+      this.H = 520;
+      this.is3D = false;
+
+      this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+      this.renderer.setPixelRatio(window.devicePixelRatio);
+      this.renderer.setSize(this.W, this.H);
+      this.renderer.setClearColor(0xffffff, 1);
+
+      this.scene  = new THREE.Scene();
+
+      // Two cameras: perspective for 3D, orthographic top-down for 2D
+      this.camPersp = new THREE.PerspectiveCamera(45, this.W / this.H, 0.01, 200);
+      this.camOrtho = new THREE.OrthographicCamera(0, 10, 8, 0, -10, 10);
+
+      // Lighting (mainly for 3D spheres, still needed for 2D)
+      this.scene.add(new THREE.AmbientLight(0xffffff, 1.0));
+      const dl = new THREE.DirectionalLight(0xffffff, 0.4);
+      dl.position.set(5, 10, 5);
+      this.scene.add(dl);
+
+      // Object registry — cleared and rebuilt on each update
+      this.obj = {
+        curve: null, polygon: null,
+        ctrlMeshes: [], ctrlLabels: [],
+        axesHelper: null, gridHelper: null,
+        dcLines: [], dcDots: [], dcFinal: null, dcLabel: null,
+        combLines: [], combEnvelope: null,
+      };
+
+      // Orbit state (3D only)
+      this._orb = {
+        btn: -1, last: [0, 0],
+        sph: { theta: -0.6, phi: 1.1, r: 14 },
+        target: new THREE.Vector3(2.5, 2, 1),
+      };
+
+      this._bindOrbit(canvas);
+    }
+
+    // ── Coordinate mapping ────────────────────────────────────
+    // 2D math space: (x,y) -> THREE (x, 0, y), camera looks down -Y axis
+    // 3D math space: (x,y,z) -> THREE (x, z, y)
+
+    _toThree(p) {
+      if (p.length === 2) return new THREE.Vector3(p[0], 0, p[1]);
+      return new THREE.Vector3(p[0], p[2], p[1]);
+    }
+
+    // ── Helpers ───────────────────────────────────────────────
+
+    _rm(obj) { if (obj) this.scene.remove(obj); }
+
+    _clearArr(arr) { arr.forEach(o => this.scene.remove(o)); arr.length = 0; }
+
+    _makeLine(pts, color, dashed) {
+      const pos = [];
+      pts.forEach(p => { const v = this._toThree(p); pos.push(v.x, v.y, v.z); });
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+      const mat = dashed
+        ? new THREE.LineDashedMaterial({ color, dashSize: 0.2, gapSize: 0.12 })
+        : new THREE.LineBasicMaterial({ color, linewidth: 2 });
+      const line = new THREE.Line(geo, mat);
+      if (dashed) line.computeLineDistances();
+      return line;
+    }
+
+    _makeSphere(p, color, r) {
+      const geo  = new THREE.SphereGeometry(r, 14, 14);
+      const mat  = new THREE.MeshLambertMaterial({ color });
+      const mesh = new THREE.Mesh(geo, mat);
+      const v    = this._toThree(p);
+      mesh.position.set(v.x, v.y, v.z);
+      return mesh;
+    }
+
+    _makeDiamond(p, color) {
+      const geo  = new THREE.OctahedronGeometry(0.18, 0);
+      const mat  = new THREE.MeshLambertMaterial({ color });
+      const mesh = new THREE.Mesh(geo, mat);
+      const v    = this._toThree(p);
+      mesh.position.set(v.x, v.y, v.z);
+      return mesh;
+    }
+
+    _makeSprite(text, hexColor) {
+      const cv = document.createElement('canvas');
+      cv.width = 256; cv.height = 64;
+      const c = cv.getContext('2d');
+      c.fillStyle = hexColor;
+      c.font = 'bold 22px monospace';
+      c.textAlign = 'left';
+      c.fillText(text, 4, 40);
+      const tex = new THREE.CanvasTexture(cv);
+      const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false });
+      const sp  = new THREE.Sprite(mat);
+      sp.scale.set(2.2, 0.55, 1);
+      return sp;
+    }
+
+    _spriteAt(p, offset) {
+      const v = this._toThree(p);
+      return new THREE.Vector3(v.x + offset.x, v.y + offset.y, v.z + offset.z);
+    }
+
+    // ── Build methods ─────────────────────────────────────────
+
+    buildCurve(pts) {
+      this._rm(this.obj.curve);
+      const curve = [];
+      for (let i = 0; i <= 300; i++) curve.push(BezierMath.point(pts, i / 300));
+      this.obj.curve = this._makeLine(curve, 0x2563eb, false);
+      this.scene.add(this.obj.curve);
+    }
+
+    buildPolygon(pts, visible) {
+      this._rm(this.obj.polygon);
+      this.obj.polygon = this._makeLine(pts, 0xe11d48, true);
+      this.obj.polygon.visible = visible;
+      this.scene.add(this.obj.polygon);
+    }
+
+    buildCtrlPoints(pts, names, hexColors, intColors) {
+      this._clearArr(this.obj.ctrlMeshes);
+      this._clearArr(this.obj.ctrlLabels);
+      const r = this.is3D ? 0.12 : 0.15;
+      pts.forEach((p, i) => {
+        const sp = this._makeSphere(p, intColors[i], r);
+        this.obj.ctrlMeshes.push(sp);
+        this.scene.add(sp);
+
+        const coordStr = p.map(v => v.toFixed ? v.toFixed(1) : v).join(',');
+        const lbl = this._makeSprite(names[i] + '(' + coordStr + ')', hexColors[i]);
+        const off = this.is3D ? { x:0.25, y:0.08, z:0.18 } : { x:0.25, y:0, z:0.3 };
+        const pos = this._spriteAt(p, off);
+        lbl.position.copy(pos);
+        this.obj.ctrlLabels.push(lbl);
+        this.scene.add(lbl);
+      });
+    }
+
+    buildAxesGrid(visible) {
+      this._rm(this.obj.axesHelper);
+      this._rm(this.obj.gridHelper);
+      if (this.is3D) {
+        const ax = new THREE.AxesHelper(6);
+        ax.visible = visible;
+        this.obj.axesHelper = ax;
+        this.scene.add(ax);
+        const gr = new THREE.GridHelper(10, 10, 0xdde2ee, 0xedf0f7);
+        gr.visible = visible;
+        this.obj.gridHelper = gr;
+        this.scene.add(gr);
+      } else {
+        // 2D: grid on XZ plane (y=0). Math space x:[0,10], y:[0,8].
+        // GridHelper(size, divisions) — 10x10 grid, 10 divisions = 1 unit each
+        const gr = new THREE.GridHelper(10, 10, 0xc8d0e0, 0xdde2ee);
+        gr.position.set(5, 0, 4);   // center of x:[0,10], center of y:[0,8]
+        this.obj.gridHelper = gr;
+        this.scene.add(gr);
+      }
+    }
+
+    buildDC(pts, u, visible, hexColors, intColors) {
+      this._clearArr(this.obj.dcLines);
+      this._clearArr(this.obj.dcDots);
+      this._rm(this.obj.dcFinal);  this.obj.dcFinal = null;
+      this._rm(this.obj.dcLabel);  this.obj.dcLabel = null;
+      if (!visible) return;
+
+      const levels = BezierMath.decasteljau(pts, u);
+      const nLevels = levels.length - 1; // number of reduction levels
+      const dotR    = [0.11, 0.09, 0.08, 0.07];
+
+      // Intermediate levels (skip level 0 = original, skip last = final point)
+      for (let lv = 1; lv < nLevels; lv++) {
+        const col = intColors[lv - 1];
+        const lvPts = levels[lv];
+        if (lvPts.length > 1) {
+          const line = this._makeLine(lvPts, col, false);
+          this.obj.dcLines.push(line);
+          this.scene.add(line);
+        }
+        lvPts.forEach(p => {
+          const sp = this._makeSphere(p, col, dotR[Math.min(lv-1, dotR.length-1)]);
+          this.obj.dcDots.push(sp);
+          this.scene.add(sp);
+        });
+      }
+
+      // Final point — diamond
+      const finalPt = levels[nLevels][0];
+      const dm = this._makeDiamond(finalPt, intColors[nLevels - 1]);
+      this.obj.dcFinal = dm;
+      this.scene.add(dm);
+
+      // Label final point
+      const coordStr = finalPt.map(v => v.toFixed(2)).join(',');
+      const lbl = this._makeSprite(
+        (this.is3D ? 'T0' : 'R0') + '(' + coordStr + ')',
+        hexColors[nLevels - 1]
+      );
+      const off = this.is3D ? { x:0.25, y:0.08, z:0.18 } : { x:0.25, y:0, z:0.3 };
+      const pos = this._spriteAt(finalPt, off);
+      lbl.position.copy(pos);
+      this.obj.dcLabel = lbl;
+      this.scene.add(lbl);
+    }
+
+    buildComb(pts, visible) {
+      // Clear previous comb
+      this._clearArr(this.obj.combLines);
+      this._rm(this.obj.combEnvelope); this.obj.combEnvelope = null;
+      if (!visible) return;
+
+      const N_PTS  = 120;
+      const N_SPIKES = 60;
+      const step   = Math.max(1, Math.floor(N_PTS / N_SPIKES));
+      const COLOR  = 0x90a4ae;
+
+      // Compute curvature and tangent at each spike position
+      // Auto-scale: spike height ~ 15% of curve extent
+      const curveSamples = [];
+      for (let i = 0; i <= N_PTS; i++) {
+        const t = i / N_PTS;
+        curveSamples.push(BezierMath.point(pts, t));
+      }
+
+      // Extent of curve in xy/xz space
+      let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+      curveSamples.forEach(p => {
+        minX = Math.min(minX, p[0]); maxX = Math.max(maxX, p[0]);
+        minY = Math.min(minY, p[1]); maxY = Math.max(maxY, p[1]);
+      });
+      const ext = Math.max(maxX - minX, maxY - minY) || 1;
+
+      // Collect kappas for auto-scale
+      const kappas = [];
+      for (let i = 0; i <= N_PTS; i += step)
+        kappas.push(BezierMath.curvature(pts, i / N_PTS));
+      kappas.sort((a, b) => a - b);
+      const kap95 = kappas[Math.floor(kappas.length * 0.95)] || 1;
+      const scale = kap95 > 1e-10 ? (0.15 * ext / kap95) : 0.1;
+
+      // Derivative control points for tangent direction
+      const d1pts = BezierMath.derivative(pts);
+
+      const tipPositions = []; // for envelope line
+
+      for (let i = 0; i <= N_PTS; i += step) {
+        const t    = i / N_PTS;
+        const base = BezierMath.point(pts, t);
+        const kap  = BezierMath.curvature(pts, t);
+        const d1   = BezierMath.point(d1pts, t);
+        const bv   = this._toThree(base);
+
+        let tipV;
+        if (!this.is3D) {
+          // 2D: normal = tangent rotated 90° in XZ plane (y=0)
+          const spd = Math.sqrt(d1[0]*d1[0] + d1[1]*d1[1]);
+          if (spd < 1e-10) continue;
+          // tangent in THREE space: (d1[0], 0, d1[1])
+          // normal (rotate 90° in XZ): (-d1[1], 0, d1[0]) / spd
+          const nx = -d1[1] / spd;
+          const nz =  d1[0] / spd;
+          tipV = new THREE.Vector3(bv.x + scale*kap*nx, 0, bv.z + scale*kap*nz);
+        } else {
+          // 3D: principal normal N = (P'×P'')×P' / |...|
+          const d2pts = d1pts.length > 1 ? BezierMath.derivative(d1pts) : null;
+          const d2    = d2pts ? BezierMath.point(d2pts, t) : [0, 0, 0];
+          // Map to THREE space
+          const d1v = this._toThree(d1);
+          const d2v = this._toThree(d2);
+          // cross(d1, d2)
+          const bx = d1v.y*d2v.z - d1v.z*d2v.y;
+          const by = d1v.z*d2v.x - d1v.x*d2v.z;
+          const bz = d1v.x*d2v.y - d1v.y*d2v.x;
+          // cross(binom, d1) = principal normal
+          const nx = by*d1v.z - bz*d1v.y;
+          const ny = bz*d1v.x - bx*d1v.z;
+          const nz = bx*d1v.y - by*d1v.x;
+          const nlen = Math.sqrt(nx*nx + ny*ny + nz*nz);
+          if (nlen < 1e-10) continue;
+          tipV = new THREE.Vector3(
+            bv.x + scale*kap*nx/nlen,
+            bv.y + scale*kap*ny/nlen,
+            bv.z + scale*kap*nz/nlen
+          );
+        }
+
+        // Spike line: base -> tip
+        const spikePos = [bv.x, bv.y, bv.z, tipV.x, tipV.y, tipV.z];
+        const spikeGeo = new THREE.BufferGeometry();
+        spikeGeo.setAttribute('position', new THREE.Float32BufferAttribute(spikePos, 3));
+        const spikeLine = new THREE.Line(spikeGeo, new THREE.LineBasicMaterial({ color: COLOR, transparent: true, opacity: 0.6 }));
+        this.obj.combLines.push(spikeLine);
+        this.scene.add(spikeLine);
+        tipPositions.push(tipV);
+      }
+
+      // Envelope line connecting all tips
+      if (tipPositions.length > 1) {
+        const envPos = [];
+        tipPositions.forEach(v => envPos.push(v.x, v.y, v.z));
+        const envGeo = new THREE.BufferGeometry();
+        envGeo.setAttribute('position', new THREE.Float32BufferAttribute(envPos, 3));
+        const envLine = new THREE.Line(envGeo, new THREE.LineBasicMaterial({ color: COLOR, transparent: true, opacity: 0.45 }));
+        this.obj.combEnvelope = envLine;
+        this.scene.add(envLine);
+      }
+    }
+
+    setCombVisible(v) {
+      this.obj.combLines.forEach(l => l.visible = v);
+      if (this.obj.combEnvelope) this.obj.combEnvelope.visible = v;
+    }
+
+    // Visibility-only updates (no rebuild)
+    setPolygonVisible(v) { if (this.obj.polygon) this.obj.polygon.visible = v; }
+    setAxesVisible(v) {
+      if (this.obj.axesHelper) this.obj.axesHelper.visible = v;
+      if (this.obj.gridHelper) this.obj.gridHelper.visible = v;
+    }
+
+    draw() { this.renderer.render(this.scene, this._camera()); }
+
+    _camera() { return this.is3D ? this.camPersp : this.camOrtho; }
+
+    // ── Camera setup per case ─────────────────────────────────
+
+    setupCamera2D() {
+      this.is3D = false;
+      // Math space: x:[0,10], y:[0,8] mapped to THREE XZ plane (x, 0, y).
+      // Camera sits above, looking straight down -Y.
+      // OrthographicCamera frustum (left,right,top,bottom) is in WORLD units,
+      // centered at the camera position — so we use half-extents around origin
+      // and translate via position, NOT via frustum offsets.
+      // up vector must be (0,0,-1) when looking down -Y, so +X stays right.
+      const aspect = this.W / this.H;   // 700/520 ~ 1.346
+      const padY   = 0.5;
+      const halfH  = (8 + 2 * padY) / 2;        // 4.5
+      const halfW  = halfH * aspect;             // ~6.06
+      this.camOrtho.left   = -halfW;
+      this.camOrtho.right  =  halfW;
+      this.camOrtho.top    =  halfH;
+      this.camOrtho.bottom = -halfH;
+      this.camOrtho.near   = -20;
+      this.camOrtho.far    =  20;
+      this.camOrtho.up.set(0, 0, 1);
+      this.camOrtho.position.set(5, 10, 4);      // center of math space, high up
+      this.camOrtho.lookAt(new THREE.Vector3(5, 0, 4));
+      this.camOrtho.updateProjectionMatrix();
+    }
+
+    setupCamera3D() {
+      this.is3D = true;
+      this.camPersp.position.set(8, 6, 10);
+      this.camPersp.lookAt(3, 2, 1);
+    }
+
+    resetView() {
+      this._orb.sph = { theta: -0.6, phi: 1.1, r: 14 };
+      this._orb.target.set(2.5, 2, 1);
+      this._applyOrbit();
+    }
+
+    // ── Orbit controls (3D only) ──────────────────────────────
+
+    _applyOrbit() {
+      const { theta, phi, r } = this._orb.sph;
+      const t = this._orb.target;
+      const sinPhi = Math.sin(phi);
+      this.camPersp.position.set(
+        t.x + r * sinPhi * Math.sin(theta),
+        t.y + r * Math.cos(phi),
+        t.z + r * sinPhi * Math.cos(theta)
+      );
+      this.camPersp.lookAt(t);
+      this.draw();
+    }
+
+    _bindOrbit(canvas) {
+      canvas.addEventListener('mousedown', e => {
+        if (!this.is3D) return;
+        this._orb.btn  = e.button;
+        this._orb.last = [e.clientX, e.clientY];
+      });
+      window.addEventListener('mousemove', e => {
+        if (!this.is3D || this._orb.btn < 0) return;
+        const dx = e.clientX - this._orb.last[0];
+        const dy = e.clientY - this._orb.last[1];
+        this._orb.last = [e.clientX, e.clientY];
+        if (this._orb.btn === 0) {
+          this._orb.sph.theta -= dx * 0.007;
+          this._orb.sph.phi    = Math.max(0.05, Math.min(Math.PI - 0.05, this._orb.sph.phi + dy * 0.007));
+        } else if (this._orb.btn === 2) {
+          const right = new THREE.Vector3();
+          right.crossVectors(this.camPersp.getWorldDirection(new THREE.Vector3()), this.camPersp.up).normalize();
+          const up = this.camPersp.up.clone().normalize();
+          const sc = this._orb.sph.r * 0.0015;
+          this._orb.target.addScaledVector(right, -dx * sc);
+          this._orb.target.addScaledVector(up,     dy * sc);
+        }
+        this._applyOrbit();
+      });
+      window.addEventListener('mouseup', () => { this._orb.btn = -1; });
+      canvas.addEventListener('wheel', e => {
+        if (!this.is3D) return;
+        e.preventDefault();
+        this._orb.sph.r = Math.max(1, Math.min(40, this._orb.sph.r + e.deltaY * 0.02));
+        this._applyOrbit();
+      }, { passive: false });
+      canvas.addEventListener('contextmenu', e => e.preventDefault());
+      canvas.addEventListener('touchstart', e => {
+        if (!this.is3D || e.touches.length !== 1) return;
+        this._orb.btn  = 0;
+        this._orb.last = [e.touches[0].clientX, e.touches[0].clientY];
+      }, { passive: true });
+      canvas.addEventListener('touchmove', e => {
+        if (!this.is3D || e.touches.length !== 1 || this._orb.btn !== 0) return;
+        const dx = e.touches[0].clientX - this._orb.last[0];
+        const dy = e.touches[0].clientY - this._orb.last[1];
+        this._orb.last = [e.touches[0].clientX, e.touches[0].clientY];
+        this._orb.sph.theta -= dx * 0.007;
+        this._orb.sph.phi    = Math.max(0.05, Math.min(Math.PI - 0.05, this._orb.sph.phi + dy * 0.007));
+        this._applyOrbit();
+      }, { passive: true });
+      canvas.addEventListener('touchend', () => { this._orb.btn = -1; });
+    }
+  }
+
+  // =============================================================
+  // Case definitions
+  // =============================================================
+  const CASES = {
+    c1: {
+      label:    'Case 1 — Quadratic 2D',
+      degree:   2,
+      defaults: [[1,1],[5,7],[9,1]],
+      ptNames:  ['P0','P1','P2'],
+      ptColors: ['#e11d48','#ea580c','#2563eb'],
+      ptColorsInt: [0xe11d48, 0xea580c, 0x2563eb],
+      dcColors: ['#ea580c','#16a34a'],
+      dcColorsInt: [0xea580c, 0x16a34a],
+      toggles: [
+        { key:'poly', label:'Control Polygon', value:true },
+        { key:'eq',   label:'Equation',        value:true },
+        { key:'dc',   label:'De Casteljau',    value:true },
+        { key:'comb', label:'Curvature Comb',  value:true },
+      ],
+    },
+    c2: {
+      label:    'Case 2 — Quartic 3D',
+      degree:   4,
+      defaults: [[0,0,1],[0,4,1],[4,0,1],[4,4,1],[5,4,1]],
+      ptNames:  ['P0','P1','P2','P3','P4'],
+      ptColors: ['#e11d48','#9333ea','#ea580c','#0891b2','#16a34a'],
+      ptColorsInt: [0xe11d48, 0x9333ea, 0xea580c, 0x0891b2, 0x16a34a],
+      dcColors: ['#f59e0b','#ec4899','#8b5cf6','#16a34a'],
+      dcColorsInt: [0xf59e0b, 0xec4899, 0x8b5cf6, 0x16a34a],
+      toggles: [
+        { key:'poly', label:'Control Polygon', value:true },
+        { key:'axes', label:'Axes Helper',     value:true },
+        { key:'eq',   label:'Equation',        value:true },
+        { key:'dc',   label:'De Casteljau',    value:true },
+        { key:'comb', label:'Curvature Comb',  value:true },
+      ],
+    },
+  };
+
+  // =============================================================
+  // Vue 3 app
+  // =============================================================
+  const { createApp, ref, computed, onMounted } = Vue;
+
+  createApp({
+    setup() {
+
+      // ── State ─────────────────────────────────────────────
+      const caseKey = ref('c1');
+      const u       = ref(0.5);
+      const ctrlPts = ref(CASES.c1.defaults.map(p => [...p]));
+      const toggles = ref(CASES.c1.toggles.map(t => ({ ...t })));
+      const eqHtml  = ref('');
+
+      // ── Computed ──────────────────────────────────────────
+      const currentCase = computed(() => CASES[caseKey.value]);
+
+      const ptGridStyle = computed(() =>
+        caseKey.value === 'c2'
+          ? 'grid-template-columns: 10px 28px 1fr 1fr 1fr;'
+          : 'grid-template-columns: 10px 28px 1fr 1fr;'
+      );
+
+      const showEq = computed(() => toggles.value.find(t => t.key === 'eq')?.value ?? true);
+
+      const flagVal = key => toggles.value.find(t => t.key === key)?.value ?? false;
+
+      // ── Scene ─────────────────────────────────────────────
+      let scene = null;
+
+      // ── Equation HTML ─────────────────────────────────────
+      function updateEq() {
+        const eq  = BezierMath.deriveEquation(ctrlPts.value, u.value);
+        const deg = currentCase.value.degree;
+        const degLabel = deg === 2 ? 'degree 2' : 'degree 4';
+        const bernstein = deg === 2
+          ? 'P=(1-u)\u00B2P0+2u(1-u)P1+u\u00B2P2'
+          : 'P=(1-u)\u2074P0+4u(1-u)\u00B3P1+6u\u00B2(1-u)\u00B2P2+4u\u00B3(1-u)P3+u\u2074P4';
+
+        let html =
+          '<span class="eq-head">Bernstein \u2014 ' + degLabel + '</span>' +
+          bernstein + '<br><br>' +
+          '<span class="eq-head">Monomial form</span>' +
+          'x(u)=<span class="eq-val">' + eq.xEq + '</span><br>' +
+          'y(u)=<span class="eq-val">' + eq.yEq + '</span>';
+        if (eq.zEq)
+          html += '<br>z(u)=<span class="eq-val">' + eq.zEq + '</span>';
+        html +=
+          '<br><br><span class="eq-head">At u = ' + u.value.toFixed(2) + '</span>' +
+          'x=<span class="eq-result">' + eq.xAt.toFixed(4) + '</span> ' +
+          'y=<span class="eq-result">' + eq.yAt.toFixed(4) + '</span>';
+        if (eq.zAt !== null)
+          html += ' z=<span class="eq-result">' + eq.zAt.toFixed(4) + '</span>';
+        eqHtml.value = html;
+      }
+
+      // ── Rebuild DC only (slider) ──────────────────────────
+      function rebuild() {
+        if (!scene) return;
+        const cs = currentCase.value;
+        scene.buildDC(ctrlPts.value, u.value, flagVal('dc'), cs.dcColors, cs.dcColorsInt);
+        updateEq();
+        scene.draw();
+      }
+
+      // ── Full rebuild (point change or case switch) ────────
+      function rebuildAll() {
+        if (!scene) return;
+        const cs = currentCase.value;
+        scene.buildCurve(ctrlPts.value);
+        scene.buildPolygon(ctrlPts.value, flagVal('poly'));
+        scene.buildCtrlPoints(ctrlPts.value, cs.ptNames, cs.ptColors, cs.ptColorsInt);
+        scene.buildAxesGrid(flagVal('axes') ?? true);
+        scene.buildDC(ctrlPts.value, u.value, flagVal('dc'), cs.dcColors, cs.dcColorsInt);
+        scene.buildComb(ctrlPts.value, flagVal('comb'));
+        updateEq();
+        scene.draw();
+      }
+
+      // ── Toggle handler ────────────────────────────────────
+      function onToggle(tog) {
+        if (!scene) return;
+        if (tog.key === 'poly') { scene.setPolygonVisible(tog.value); scene.draw(); }
+        if (tog.key === 'axes') { scene.setAxesVisible(tog.value);   scene.draw(); }
+        if (tog.key === 'dc')   { rebuild(); }
+        if (tog.key === 'comb') { scene.setCombVisible(tog.value);   scene.draw(); }
+        // 'eq' is handled by v-show on the card
+      }
+
+      // ── Edit a control point ──────────────────────────────
+      function setPt(i, axis, raw) {
+        const v = parseFloat(raw);
+        if (isNaN(v)) return;
+        const pts = ctrlPts.value.map(p => [...p]);
+        pts[i][axis] = v;
+        ctrlPts.value = pts;
+        rebuildAll();
+      }
+
+      // ── Switch case ───────────────────────────────────────
+      function switchCase(key) {
+        if (key === caseKey.value) return;
+        caseKey.value  = key;
+        ctrlPts.value  = CASES[key].defaults.map(p => [...p]);
+        toggles.value  = CASES[key].toggles.map(t => ({ ...t }));
+        u.value        = 0.5;
+        if (!scene) return;
+        if (key === 'c1') scene.setupCamera2D();
+        else              scene.setupCamera3D();
+        rebuildAll();
+        if (key === 'c2') scene._applyOrbit();
+        else              scene.draw();
+      }
+
+      // ── Resets ────────────────────────────────────────────
+      function resetView() { if (scene) scene.resetView(); }
+      function resetPts()  {
+        ctrlPts.value = currentCase.value.defaults.map(p => [...p]);
+        rebuildAll();
+      }
+
+      // ── Init ──────────────────────────────────────────────
+      onMounted(() => {
+        const canvas = document.getElementById('threeCanvas');
+        scene = new BezierScene(canvas);
+        scene.setupCamera2D();
+        rebuildAll();
+        scene.draw();
+      });
+
+      return {
+        caseKey, u, ctrlPts, toggles, eqHtml,
+        currentCase, ptGridStyle, showEq,
+        onToggle, setPt, rebuild, switchCase,
+        resetView, resetPts,
+      };
+    },
+  }).mount('#app');
+  </script>
+</body>
+</html>

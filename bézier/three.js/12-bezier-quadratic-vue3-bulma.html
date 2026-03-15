@@ -1,0 +1,621 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Quadratic Bezier — Interactive</title>
+
+  <!-- Local dependencies — place files in same folder as this HTML -->
+  <link rel="stylesheet" href="bulma.min.css">
+  <link rel="stylesheet" href="12-styles.css">
+  <script src="vue.global.prod.js"></script>
+</head>
+
+<body>
+
+<!-- ── Page header ── -->
+<div class="page-header">
+  <h1 class="is-mono">Bezier · Quadratic</h1>
+  <span class="is-mono">// drag points or edit coordinates</span>
+</div>
+
+<!-- ── App root ── -->
+<div id="app" class="workspace">
+
+  <!-- Canvas -->
+  <div class="canvas-wrap">
+    <canvas id="cvs"></canvas>
+  </div>
+
+  <!-- Sidebar -->
+  <div class="sidebar">
+
+    <!-- Display toggles -->
+    <div class="card">
+      <div class="card-header">
+        <p class="card-header-title is-mono">Display</p>
+      </div>
+      <div class="card-content" style="padding: 14px 16px;">
+
+        <div class="toggle-row" v-for="tog in toggles" :key="tog.key">
+          <span class="toggle-label">{{ tog.label }}</span>
+          <label class="toggle-switch">
+            <input type="checkbox" v-model="tog.value" @change="render">
+            <div class="toggle-track" :class="{ 'is-on': tog.value }">
+              <div class="toggle-thumb" :class="{ 'is-on': tog.value }"></div>
+            </div>
+          </label>
+        </div>
+
+        <!-- u slider -->
+        <div style="margin-top: 14px;">
+          <div class="u-row">
+            <label class="is-mono" style="font-size:0.8rem; color:var(--label);">Parameter u</label>
+            <span class="u-badge is-mono">{{ u.toFixed(2) }}</span>
+          </div>
+          <input type="range" min="0" max="1" step="0.01" v-model.number="u" @input="render">
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Control points -->
+    <div class="card">
+      <div class="card-header">
+        <p class="card-header-title is-mono">Control Points</p>
+      </div>
+      <div class="card-content" style="padding: 14px 16px;">
+
+        <div class="pt-grid" v-for="(pt, i) in mathPts" :key="i">
+          <div class="pt-dot" :style="{ background: PT_COLORS[i] }"></div>
+          <span class="pt-name is-mono">{{ PT_NAMES[i] }}</span>
+          <input class="input is-small is-mono"
+            type="number" step="0.1" min="0" max="10" placeholder="x"
+            :value="pt[0].toFixed(3)"
+            @change="setPt(i, 'x', $event.target.value)"
+            style="text-align:center;">
+          <input class="input is-small is-mono"
+            type="number" step="0.1" min="0" max="8" placeholder="y"
+            :value="pt[1].toFixed(3)"
+            @change="setPt(i, 'y', $event.target.value)"
+            style="text-align:center;">
+        </div>
+
+        <p style="font-size:0.72rem; color:var(--muted); margin-top:10px; line-height:1.6;">
+          Drag on canvas, or type x/y values.<br>
+          Coordinate space: x ∈ [0,10], y ∈ [0,8]
+        </p>
+      </div>
+    </div>
+  </div><!-- sidebar -->
+
+  <!-- Sidebar -->
+  <div class="sidebar">
+
+    <!-- Equation card -->
+    <div class="card" v-show="showEq">
+      <div class="card-header">
+        <p class="card-header-title is-mono">Equation</p>
+      </div>
+      <div class="card-content" style="padding: 14px 16px;">
+        <div class="eq-box is-mono" v-html="eqHtml"></div>
+      </div>
+    </div>
+
+    <!-- Legend -->
+    <div class="card">
+      <div class="card-header">
+        <p class="card-header-title is-mono">Legend</p>
+      </div>
+      <div class="card-content" style="padding: 14px 16px;">
+        <div class="legend">
+          <div class="legend-item">
+            <div class="leg-line" style="background:#2563eb"></div>
+            Bezier Curve
+          </div>
+          <div class="legend-item">
+            <div class="leg-dash" style="border-color:#e11d48"></div>
+            Control Polygon
+          </div>
+          <div class="legend-item">
+            <div class="leg-line" style="background:#ea580c"></div>
+            DC Level 1 — Q0·Q1
+          </div>
+          <div class="legend-item">
+            <div class="leg-dot" style="background:#ea580c"></div>
+            Q0, Q1 (level 1 pts)
+          </div>
+          <div class="legend-item">
+            <div class="leg-diamond" style="background:#16a34a"></div>
+            R0 — curve point at u
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Reset -->
+    <button class="button is-fullwidth is-mono"
+      style="font-size:0.74rem; letter-spacing:0.07em; color:var(--muted); border-color:#c8d0e0;"
+      @click="reset"
+      @mouseover="$event.target.style.cssText += 'color:var(--accent2);border-color:var(--accent2);background:#fff5f7;'"
+      @mouseout="$event.target.style.cssText  += 'color:var(--muted);border-color:#c8d0e0;background:transparent;'">
+      ↺ &nbsp; Reset Points
+    </button>
+
+  </div><!-- sidebar -->
+</div><!-- app -->
+
+<script>
+// =============================================================
+// BezierMath — pure math, no DOM
+// =============================================================
+class BezierMath {
+
+  static lerp(a, b, t) {
+    return [(1-t)*a[0] + t*b[0], (1-t)*a[1] + t*b[1]];
+  }
+
+  static point(p0, p1, p2, t) {
+    return this.lerp(this.lerp(p0, p1, t), this.lerp(p1, p2, t), t);
+  }
+
+  static decasteljau(p0, p1, p2, t) {
+    const q0 = this.lerp(p0, p1, t);
+    const q1 = this.lerp(p1, p2, t);
+    const r0 = this.lerp(q0, q1, t);
+    return { q0, q1, r0 };
+  }
+
+  static fmt(v) {
+    return parseFloat(v.toFixed(3)).toString();
+  }
+
+  static buildPoly(a, b, c) {
+    let s = '', first = true;
+    const push = (coef, suffix) => {
+      if (Math.abs(coef) < 1e-9) return;
+      const sign = coef < 0 ? ' − ' : (first ? '' : ' + ');
+      s += sign + this.fmt(Math.abs(coef)) + suffix;
+      first = false;
+    };
+    push(a, 'u²'); push(b, 'u'); push(c, '');
+    return s || '0';
+  }
+
+  static deriveEquation(pts) {
+    const [[x0,y0],[x1,y1],[x2,y2]] = pts;
+    const ax = x0 - 2*x1 + x2,  bx = -2*x0 + 2*x1,  cx = x0;
+    const ay = y0 - 2*y1 + y2,  by = -2*y0 + 2*y1,  cy = y0;
+    return {
+      xEq:  this.buildPoly(ax, bx, cx),
+      yEq:  this.buildPoly(ay, by, cy),
+      eval: t => [ax*t*t + bx*t + cx, ay*t*t + by*t + cy],
+    };
+  }
+}
+
+// =============================================================
+// BezierRenderer — owns the canvas, all draw methods
+// =============================================================
+class BezierRenderer {
+
+  constructor(canvas) {
+    this.cvs = canvas;
+    this.ctx = canvas.getContext('2d');
+    this.W   = 640;
+    this.H   = 520;
+    this.PAD = 60;
+    this.MX  = 10;
+    this.MY  = 8;
+    this.HIT = 14;
+
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width        = this.W * dpr;
+    canvas.height       = this.H * dpr;
+    canvas.style.width  = this.W + 'px';
+    canvas.style.height = this.H + 'px';
+    this.ctx.scale(dpr, dpr);
+
+    this.C = {
+      gridMinor: '#edf0f7',
+      gridMajor: '#dde2ee',
+      axis:      '#c8d0e0',
+      axisTxt:   '#9aa3b8',
+      curve:     '#2563eb',
+      polygon:   '#e11d48',
+      lv1:       '#ea580c',
+      lv2:       '#16a34a',
+      label:     '#4b5470',
+      muted:     '#9aa3b8',
+      eqBg:      'rgba(248,250,255,0.92)',
+      eqBorder:  '#dde2ee',
+    };
+  }
+
+  // ── Coordinate transforms ───────────────────────────────────
+
+  m2c(mx, my) {
+    const { W, H, PAD, MX, MY } = this;
+    return [
+      PAD + (mx / MX) * (W - 2*PAD),
+      H - PAD - (my / MY) * (H - 2*PAD),
+    ];
+  }
+
+  c2m(cx, cy) {
+    const { W, H, PAD, MX, MY } = this;
+    return [
+      (cx - PAD) / (W - 2*PAD) * MX,
+      (1 - (cy - PAD) / (H - 2*PAD)) * MY,
+    ];
+  }
+
+  canvasPts(mathPts) {
+    return mathPts.map(([x, y]) => this.m2c(x, y));
+  }
+
+  // ── Low-level helpers ───────────────────────────────────────
+
+  _line(pts, color, width, dash = []) {
+    const { ctx } = this;
+    ctx.strokeStyle = color;
+    ctx.lineWidth   = width;
+    ctx.setLineDash(dash);
+    ctx.beginPath();
+    pts.forEach(([x, y], i) => i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y));
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  _dot(x, y, r, color) {
+    const { ctx } = this;
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fillStyle = color;
+    ctx.fill();
+  }
+
+  _diamond(x, y, size, color) {
+    const { ctx } = this;
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(Math.PI / 4);
+    ctx.fillStyle = color;
+    ctx.fillRect(-size/2, -size/2, size, size);
+    ctx.restore();
+  }
+
+  // ── Scene elements ──────────────────────────────────────────
+
+  drawGrid() {
+    const { W, H, PAD, MX, MY, C } = this;
+    for (let i = 0; i <= MX; i++) {
+      const [x] = this.m2c(i, 0);
+      this._line([[x, PAD], [x, H-PAD]],
+        i % 2 === 0 ? C.gridMajor : C.gridMinor,
+        i % 2 === 0 ? 1.5 : 1);
+    }
+    for (let j = 0; j <= MY; j++) {
+      const [, y] = this.m2c(0, j);
+      this._line([[PAD, y], [W-PAD, y]],
+        j % 2 === 0 ? C.gridMajor : C.gridMinor,
+        j % 2 === 0 ? 1.5 : 1);
+    }
+  }
+
+  drawAxes() {
+    const { ctx, W, H, PAD, MX, MY, C } = this;
+    const [xL]  = this.m2c(0,  0);
+    const [xR]  = this.m2c(MX, 0);
+    const [, yB] = this.m2c(0,  0);
+    const [, yT] = this.m2c(0,  MY);
+
+    this._line([[xL, yB], [xR, yB]], C.axis, 1.5);
+    this._line([[xL, yT], [xL, yB]], C.axis, 1.5);
+
+    ctx.fillStyle = C.axisTxt;
+    ctx.font      = '10px JetBrains Mono, Consolas, monospace';
+
+    ctx.textAlign = 'center';
+    for (let i = 0; i <= MX; i += 2) {
+      const [x] = this.m2c(i, 0);
+      ctx.fillText(i, x, yB + 16);
+    }
+    ctx.textAlign = 'right';
+    for (let j = 0; j <= MY; j += 2) {
+      const [, y] = this.m2c(0, j);
+      ctx.fillText(j, xL - 7, y + 4);
+    }
+  }
+
+  drawCurve(cp) {
+    const { ctx, C } = this;
+    ctx.beginPath();
+    ctx.strokeStyle = C.curve;
+    ctx.lineWidth   = 2.5;
+    ctx.setLineDash([]);
+    for (let i = 0; i <= 200; i++) {
+      const t  = i / 200;
+      const pt = BezierMath.point(cp[0], cp[1], cp[2], t);
+      i === 0 ? ctx.moveTo(pt[0], pt[1]) : ctx.lineTo(pt[0], pt[1]);
+    }
+    ctx.stroke();
+  }
+
+  drawPolygon(cp) {
+    this._line(cp, this.C.polygon, 1.5, [6, 4]);
+  }
+
+  drawControlPoints(cp, mathPts, PT_NAMES, PT_COLORS) {
+    const { ctx, C } = this;
+    cp.forEach(([x, y], i) => {
+      // Halo ring
+      ctx.beginPath();
+      ctx.arc(x, y, 9, 0, Math.PI * 2);
+      ctx.strokeStyle = PT_COLORS[i];
+      ctx.lineWidth   = 2;
+      ctx.stroke();
+      // Filled centre
+      this._dot(x, y, 5, PT_COLORS[i]);
+      // Name label
+      const offX = i === 0 ? -30 : 12;
+      const offY = i === 1 ? -14 : 14;
+      ctx.fillStyle = PT_COLORS[i];
+      ctx.font      = 'bold 11px JetBrains Mono, Consolas, monospace';
+      ctx.textAlign = 'left';
+      ctx.fillText(PT_NAMES[i], x + offX, y + offY);
+      // Coordinate label
+      const [mx, my] = mathPts[i];
+      ctx.fillStyle   = C.label;
+      ctx.font        = '9px JetBrains Mono, Consolas, monospace';
+      ctx.fillText(`(${mx.toFixed(2)},${my.toFixed(2)})`, x + offX, y + offY + 12);
+    });
+  }
+
+  drawDC(cp, u) {
+    const { ctx, C } = this;
+    const { q0, q1, r0 } = BezierMath.decasteljau(cp[0], cp[1], cp[2], u);
+
+    // Q0–Q1 segment
+    this._line([q0, q1], C.lv1, 2);
+
+    // Q dots + labels
+    [q0, q1].forEach(([x, y], i) => {
+      this._dot(x, y, 5, C.lv1);
+      ctx.fillStyle = C.lv1;
+      ctx.font      = '9px JetBrains Mono, Consolas, monospace';
+      ctx.textAlign = i === 0 ? 'right' : 'left';
+      ctx.fillText(`Q${i}`, i === 0 ? x - 8 : x + 8, y + 4);
+    });
+
+    // R0 diamond
+    this._diamond(r0[0], r0[1], 12, C.lv2);
+
+    // R0 labels
+    const [rx, ry] = this.c2m(r0[0], r0[1]);
+    ctx.fillStyle  = C.lv2;
+    ctx.font       = 'bold 9px JetBrains Mono, Consolas, monospace';
+    ctx.textAlign  = 'left';
+    ctx.fillText('R0', r0[0] + 10, r0[1] - 4);
+    ctx.font       = '9px JetBrains Mono, Consolas, monospace';
+    ctx.fillStyle  = C.label;
+    ctx.fillText(`(${rx.toFixed(2)},${ry.toFixed(2)})`, r0[0] + 10, r0[1] + 8);
+
+    // u badge above R0
+    ctx.fillStyle  = C.lv2;
+    ctx.font       = 'bold 10px JetBrains Mono, Consolas, monospace';
+    ctx.textAlign  = 'center';
+    ctx.fillText(`u = ${u.toFixed(2)}`, r0[0], r0[1] - 16);
+  }
+
+  drawEquation(mathPts, u) {
+    const { ctx, PAD, C } = this;
+    const eq        = BezierMath.deriveEquation(mathPts);
+    const [ex, ey]  = eq.eval(u);
+
+    const lines = [
+      { head: 'Bernstein form' },
+      { text: 'P(u)=(1-u)²P0+2u(1-u)P1+u²P2' },
+      { head: 'Monomial form' },
+      { text: `x(u) = ${eq.xEq}` },
+      { text: `y(u) = ${eq.yEq}` },
+      { head: `At u = ${u.toFixed(2)}` },
+      { text: `x = ${ex.toFixed(4)},  y = ${ey.toFixed(4)}` },
+    ];
+
+    const bx  = PAD + 6,  by  = PAD + 10;
+    const lh  = 16,        bw  = 270;
+    const bht = lines.length * lh + 14;
+
+    ctx.fillStyle   = C.eqBg;
+    ctx.strokeStyle = C.eqBorder;
+    ctx.lineWidth   = 1;
+    ctx.setLineDash([]);
+    ctx.beginPath();
+    ctx.roundRect(bx - 6, by - 12, bw, bht, 7);
+    ctx.fill();
+    ctx.stroke();
+
+    let y = by;
+    lines.forEach(ln => {
+      if (ln.head) {
+        ctx.fillStyle = C.muted;
+        ctx.font      = '8px JetBrains Mono, Consolas, monospace';
+        ctx.textAlign = 'left';
+        ctx.fillText(ln.head.toUpperCase(), bx, y);
+      } else {
+        ctx.fillStyle = C.label;
+        ctx.font      = '9.5px JetBrains Mono, Consolas, monospace';
+        ctx.textAlign = 'left';
+        ctx.fillText(ln.text, bx, y);
+      }
+      y += lh;
+    });
+  }
+
+  // ── Full scene ──────────────────────────────────────────────
+
+  render(mathPts, u, flags, PT_NAMES, PT_COLORS) {
+    const { ctx, W, H } = this;
+    const cp = this.canvasPts(mathPts);
+    ctx.clearRect(0, 0, W, H);
+    this.drawGrid();
+    this.drawAxes();
+    this.drawCurve(cp);
+    if (flags.poly) this.drawPolygon(cp);
+    if (flags.dc)   this.drawDC(cp, u);
+    this.drawControlPoints(cp, mathPts, PT_NAMES, PT_COLORS);
+    if (flags.eq)   this.drawEquation(mathPts, u);
+  }
+
+  // ── Drag helpers ────────────────────────────────────────────
+
+  findHit(cx, cy, mathPts) {
+    const cp = this.canvasPts(mathPts);
+    for (let i = cp.length - 1; i >= 0; i--) {
+      if (Math.hypot(cp[i][0] - cx, cp[i][1] - cy) < this.HIT) return i;
+    }
+    return -1;
+  }
+
+  eventXY(e) {
+    const rect   = this.cvs.getBoundingClientRect();
+    const scaleX = this.W / rect.width;
+    const scaleY = this.H / rect.height;
+    const src    = e.touches ? e.touches[0] : e;
+    return [(src.clientX - rect.left) * scaleX, (src.clientY - rect.top) * scaleY];
+  }
+}
+
+// =============================================================
+// Vue 3 app
+// =============================================================
+const { createApp, ref, computed, onMounted } = Vue;
+
+createApp({
+  setup() {
+
+    // ── Constants ─────────────────────────────────────────────
+    const PT_NAMES  = ['P0', 'P1', 'P2'];
+    const PT_COLORS = ['#e11d48', '#ea580c', '#2563eb'];
+    const DEFAULTS  = [[1, 1], [5, 7], [9, 1]];
+
+    // ── Reactive state ────────────────────────────────────────
+    const mathPts = ref(DEFAULTS.map(p => [...p]));
+    const u       = ref(0.5);
+    const toggles = ref([
+      { key: 'poly', label: 'Control Polygon', value: true },
+      { key: 'eq',   label: 'Equation',        value: true },
+      { key: 'dc',   label: 'De Casteljau',    value: true },
+    ]);
+    const eqHtml  = ref('');
+
+    // ── Computed ──────────────────────────────────────────────
+    const flags  = computed(() =>
+      Object.fromEntries(toggles.value.map(t => [t.key, t.value]))
+    );
+    const showEq = computed(() =>
+      toggles.value.find(t => t.key === 'eq').value
+    );
+
+    // ── Renderer (set in onMounted) ───────────────────────────
+    let renderer = null;
+
+    // ── Drag state ────────────────────────────────────────────
+    const drag = { idx: -1, offX: 0, offY: 0 };
+
+    // ── Methods ───────────────────────────────────────────────
+    function render() {
+      if (!renderer) return;
+      renderer.render(mathPts.value, u.value, flags.value, PT_NAMES, PT_COLORS);
+      updateEqHtml();
+    }
+
+    function updateEqHtml() {
+      const eq       = BezierMath.deriveEquation(mathPts.value);
+      const [ex, ey] = eq.eval(u.value);
+      eqHtml.value = `
+        <span class="eq-head">Bernstein — degree 2</span>
+        P(u) = (1-u)²P0 + 2u(1-u)P1 + u²P2
+        <br><br>
+        <span class="eq-head">Monomial form</span>
+        x(u) = <span class="eq-val">${eq.xEq}</span><br>
+        y(u) = <span class="eq-val">${eq.yEq}</span>
+        <br><br>
+        <span class="eq-head">At u = ${u.value.toFixed(2)}</span>
+        x = <span class="eq-result">${ex.toFixed(4)}</span><br>
+        y = <span class="eq-result">${ey.toFixed(4)}</span>
+      `;
+    }
+
+    function setPt(i, axis, raw) {
+      const v = parseFloat(raw);
+      if (isNaN(v)) return;
+      const max = axis === 'x' ? 10 : 8;
+      const pts = mathPts.value.map(p => [...p]);
+      pts[i][axis === 'x' ? 0 : 1] = Math.max(0, Math.min(max, v));
+      mathPts.value = pts;
+      render();
+    }
+
+    function reset() {
+      mathPts.value = DEFAULTS.map(p => [...p]);
+      render();
+    }
+
+    // ── Drag wiring ───────────────────────────────────────────
+    function bindDrag(cvs) {
+      const start = e => {
+        const [cx, cy] = renderer.eventXY(e);
+        drag.idx = renderer.findHit(cx, cy, mathPts.value);
+        if (drag.idx >= 0) {
+          const cp   = renderer.canvasPts(mathPts.value);
+          drag.offX  = cp[drag.idx][0] - cx;
+          drag.offY  = cp[drag.idx][1] - cy;
+          cvs.classList.add('dragging');
+        }
+      };
+
+      const move = e => {
+        if (drag.idx < 0) return;
+        e.preventDefault();
+        const [cx, cy] = renderer.eventXY(e);
+        const [mx, my] = renderer.c2m(cx + drag.offX, cy + drag.offY);
+        const pts      = mathPts.value.map(p => [...p]);
+        pts[drag.idx]  = [Math.max(0, Math.min(10, mx)), Math.max(0, Math.min(8, my))];
+        mathPts.value  = pts;
+        render();
+      };
+
+      const end = () => {
+        drag.idx = -1;
+        cvs.classList.remove('dragging');
+      };
+
+      cvs.addEventListener('mousedown',  start);
+      cvs.addEventListener('mousemove',  move);
+      cvs.addEventListener('mouseup',    end);
+      cvs.addEventListener('mouseleave', end);
+      cvs.addEventListener('touchstart', e => { e.preventDefault(); start(e); }, { passive: false });
+      cvs.addEventListener('touchmove',  e => { e.preventDefault(); move(e);  }, { passive: false });
+      cvs.addEventListener('touchend',   end);
+    }
+
+    // ── Lifecycle ─────────────────────────────────────────────
+    onMounted(() => {
+      const cvs = document.getElementById('cvs');
+      renderer  = new BezierRenderer(cvs);
+      bindDrag(cvs);
+      render();
+    });
+
+    return {
+      PT_NAMES, PT_COLORS,
+      mathPts, u, toggles, eqHtml, showEq,
+      render, setPt, reset,
+    };
+  },
+}).mount('#app');
+</script>
+</body>
+</html>

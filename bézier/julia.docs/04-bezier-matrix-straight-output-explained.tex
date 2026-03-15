@@ -1,0 +1,510 @@
+% ============================================================
+% 04-bezier-matrix-straight-output-explained.tex
+% Compile with:  pdflatex -shell-escape 04-bezier-matrix-straight-output-explained.tex
+% Run twice for table of contents.
+% ============================================================
+
+\documentclass[12pt, a4paper]{article}
+
+% ---- Encoding & fonts ----------------------------------------
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+
+% ---- Page geometry -------------------------------------------
+\usepackage[
+  top=2.5cm, bottom=2.5cm,
+  left=2.8cm, right=2.8cm
+]{geometry}
+
+% ---- Colours -------------------------------------------------
+\usepackage[dvipsnames]{xcolor}
+\definecolor{codebg}{RGB}{248,248,248}
+\definecolor{rulecolor}{RGB}{180,180,180}
+\definecolor{examplebg}{RGB}{240,248,255}
+\definecolor{examplerule}{RGB}{100,149,237}
+\definecolor{notebg}{RGB}{255,250,230}
+\definecolor{noterule}{RGB}{210,180,50}
+
+% ---- Minted --------------------------------------------------
+\usepackage{minted}
+\setminted[text]{
+  bgcolor    = codebg,
+  frame      = leftline,
+  framerule  = 1.5pt,
+  rulecolor  = rulecolor,
+  fontsize   = \small,
+  breaklines = true,
+}
+
+% ---- Math ----------------------------------------------------
+\usepackage{amsmath}
+\usepackage{amssymb}
+
+% ---- Boxes ---------------------------------------------------
+\usepackage{mdframed}
+
+\newmdenv[
+  backgroundcolor  = examplebg,
+  linecolor        = examplerule, linewidth=1.5pt,
+  leftline=true, rightline=false, topline=false, bottomline=false,
+  innerleftmargin=10pt, innerrightmargin=8pt,
+  innertopmargin=6pt, innerbottommargin=6pt,
+  skipabove=6pt, skipbelow=4pt,
+]{examplebox}
+
+\newmdenv[
+  backgroundcolor  = notebg,
+  linecolor        = noterule, linewidth=1.5pt,
+  leftline=true, rightline=false, topline=false, bottomline=false,
+  innerleftmargin=10pt, innerrightmargin=8pt,
+  innertopmargin=6pt, innerbottommargin=6pt,
+  skipabove=6pt, skipbelow=4pt,
+]{notebox}
+
+% ---- Hyperlinks ----------------------------------------------
+\usepackage[colorlinks=true, linkcolor=black, urlcolor=MidnightBlue]{hyperref}
+
+% ---- Misc ----------------------------------------------------
+\usepackage{booktabs}
+\usepackage{needspace}
+\usepackage{parskip}
+\usepackage{titlesec}
+\usepackage{fancyhdr}
+\usepackage{datetime2}
+
+% ---- Section formatting --------------------------------------
+\titleformat{\section}
+  {\large\bfseries\color{MidnightBlue}}
+  {\thesection.}{0.6em}{}[\vspace{-4pt}\rule{\linewidth}{0.4pt}]
+\titleformat{\subsection}
+  {\normalsize\bfseries\color{BrickRed}}
+  {\thesubsection.}{0.5em}{}
+
+% ---- Header / footer -----------------------------------------
+\pagestyle{fancy}
+\fancyhf{}
+\rhead{\textcolor{gray}{\small 04-bezier-matrix-straight-output-explained}}
+\lhead{\textcolor{gray}{\small B\'ezier Matrix Straight --- Output Explanation}}
+\cfoot{\thepage}
+\renewcommand{\headrulewidth}{0.3pt}
+
+% ---- Helpers -------------------------------------------------
+\newcommand{\cd}[1]{\texttt{#1}}
+
+% ---- Title ---------------------------------------------------
+\title{%
+  \vspace{1cm}
+  {\LARGE\bfseries B\'ezier Curve --- Matrix Method (Straight)}\\[0.4em]
+  {\large $P(u) = U \cdot M \cdot G$}\\[0.4em]
+  {\large Explanation of the Program Output}\\[0.4em]
+  {\normalsize Case 2: Quartic 3-D, 5 Control Points}\\[0.4em]
+  {\normalsize\texttt{04-bezier-matrix-straight.jl}}
+}
+\author{E.R.\ Nurwijayadi}
+\date{\DTMtoday}
+
+
+% =============================================================
+\begin{document}
+% =============================================================
+
+\maketitle
+\thispagestyle{empty}
+
+\begin{center}
+\textit{Directed and curated by E.R.\ Nurwijayadi.
+Code and explanations AI-generated.}
+\end{center}
+
+\begin{center}
+\begin{minipage}{0.85\textwidth}
+\small
+This document explains the output of
+\cd{04-bezier-matrix-straight.jl} when run with \cd{CASE = 2}.
+The mathematical method is identical to script~03
+($P(u) = U \cdot M \cdot G$, same control points, same matrices,
+same results).
+What changed is the \textbf{output format}: script~03 was
+pedagogical --- it derived $M$ column by column, showed each
+dot product explicitly, and printed five numbered steps.
+Script~04 is straight --- it prints the final matrices and
+result directly, with no intermediate working shown.
+\end{minipage}
+\end{center}
+
+\vspace{1em}\hrule\vspace{1.5em}
+\tableofcontents
+\newpage
+
+
+% =============================================================
+\needspace{8\baselineskip}
+\section{What Changed from Script 03}
+% =============================================================
+
+\textit{Same curve. Same matrices. Same numbers.
+Just a cleaner, more direct presentation.}
+
+Script~03 had five numbered steps, each showing the derivation
+or computation in detail.
+Script~04 has five \emph{sections} --- flat, unnumbered,
+one per matrix or result --- printed without any working.
+
+\begin{center}
+\begin{tabular}{lll}
+\toprule
+Script~03 output block & Script~04 output block & Content \\
+\midrule
+Step~1: Matrix Formulation & \textit{(header only)} & Formula and shapes \\
+Step~2: Derive $M$ & $M$ --- Basis Matrix & Just the matrix \\
+Step~3: Compute $M \cdot G$ & $M \cdot G$ --- Polynomial Coefficient Matrix & Just the matrix \\
+\textit{(inside Step~3)} & Resulting Polynomials & The polynomial strings \\
+Step~4: Evaluate $U \cdot (M \cdot G)$ & \textit{(dropped)} & Per-$u$ dot products \\
+Step~5: Summary table & Evaluation Table & Box-bordered table \\
+\midrule
+\textit{(no equivalent)} & $G$ --- Geometry Matrix & Control points as matrix \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\begin{notebox}
+\textbf{One new block: $G$ is now shown explicitly.}
+Script~03 listed the control points as a plain list in Step~1.
+Script~04 prints them as the labelled geometry matrix $G$
+--- the same data, formatted as a proper matrix table,
+making the connection to $P(u) = U \cdot M \cdot G$ more direct.
+
+\textbf{One dropped block: the per-$u$ dot product display.}
+Script~03 Step~4 showed every multiplication
+$U[k] \cdot (MG)[k]$ for each $u$ value.
+Script~04 drops this entirely and goes straight to the
+summary table.
+The numbers are the same; you just no longer see how they
+were reached.
+\end{notebox}
+
+
+% =============================================================
+\needspace{8\baselineskip}
+\section{Header}
+% =============================================================
+
+\begin{minted}{text}
+==================================================================
+  Bezier Curve - Matrix Method  [P(u) = U * M * G]
+  Case 2  |  Quartic  |  3D  |  5 Control Points
+==================================================================
+\end{minted}
+
+Identical to script~03.
+The formula $P(u) = U \cdot M \cdot G$ is stated in the
+title line, setting the context for the four matrices
+that follow.
+
+
+% =============================================================
+\needspace{8\baselineskip}
+\section{$G$ --- Geometry Matrix}
+% =============================================================
+
+\begin{minted}{text}
+  G  - Geometry Matrix (Control Points)
+  ----------------------------------------------------------------
+
+      x  y  z
+      -  -  -
+  P0  0  0  1
+  P1  0  4  1
+  P2  4  0  1
+  P3  4  4  1
+  P4  5  4  1
+\end{minted}
+
+$G$ is the $5 \times 3$ control point matrix:
+
+\[
+  G = \begin{bmatrix}
+    0 & 0 & 1 \\
+    0 & 4 & 1 \\
+    4 & 0 & 1 \\
+    4 & 4 & 1 \\
+    5 & 4 & 1
+  \end{bmatrix}
+\]
+
+Row $i$ = control point $P_{i-1}$.
+Column $j$ = axis ($x$, $y$, $z$).
+This is the same data as the control point list in the
+header of scripts~01--03, now presented as the matrix
+it actually is in the computation $P(u) = U \cdot M \cdot G$.
+
+All $z$-coordinates are 1, which means the curve lies
+entirely in the plane $z = 1$. This will be confirmed
+when $z(u) = 1$ appears in every result below.
+
+
+% =============================================================
+\needspace{8\baselineskip}
+\section{$M$ --- Basis Matrix}
+% =============================================================
+
+\begin{minted}{text}
+  M  - Basis Matrix (derived from Bernstein)
+  ----------------------------------------------------------------
+
+       P0   P1   P2  P3  P4
+       --  ---  ---  --  --
+  u^4   1   -4    6  -4   1
+  u^3  -4   12  -12   4   0
+  u^2   6  -12    6   0   0
+  u^1  -4    4    0   0   0
+  u^0   1    0    0   0   0
+\end{minted}
+
+$M$ is the $5 \times 5$ basis matrix derived from the
+Bernstein polynomials.
+It is the same matrix that script~03 derived column by
+column in Step~2.
+Here it is printed directly without derivation.
+
+\[
+  M = \begin{bmatrix}
+    1  & -4 &  6 & -4 & 1 \\
+   -4  & 12 & -12 & 4 & 0 \\
+    6  & -12 &  6 &  0 & 0 \\
+   -4  &  4 &  0 &  0 & 0 \\
+    1  &  0 &  0 &  0 & 0
+  \end{bmatrix}
+\]
+
+The column labels \cd{P0} through \cd{P4} indicate that
+column $i$ holds the monomial coefficients of $B(4,i,u)$,
+the $i$-th Bernstein basis polynomial.
+The row labels indicate the power of $u$ each row represents,
+from $u^4$ (top) to $u^0 = 1$ (bottom).
+
+\begin{notebox}
+\textbf{Reading $M$:}
+Column~0 contains $[1, -4, 6, -4, 1]$ --- the coefficients
+of $(1-u)^4 = 1 - 4u + 6u^2 - 4u^3 + u^4$,
+reading from the $u^4$ row downward.
+Column~4 contains $[1, 0, 0, 0, 0]$ --- the coefficient of
+$u^4$ only, matching $B(4,4,u) = u^4$.
+The lower-left triangle is all zeros because $B(4,i,u)$
+contains $u^i$ as its lowest power.
+\end{notebox}
+
+
+% =============================================================
+\needspace{8\baselineskip}
+\section{$M \cdot G$ --- Polynomial Coefficient Matrix}
+% =============================================================
+
+\begin{minted}{text}
+  M * G  - Polynomial Coefficient Matrix
+  ----------------------------------------------------------------
+
+         x    y  z
+       ---  ---  -
+  u^4   13  -28  0
+  u^3  -32   64  0
+  u^2   24  -48  0
+  u^1    0   16  0
+  u^0    0    0  1
+\end{minted}
+
+$M \cdot G$ is the $5 \times 3$ product of the basis matrix
+and the geometry matrix.
+Row $k$ gives the coefficient of $u^{4-k}$ for each axis.
+
+\[
+  M \cdot G = \begin{bmatrix}
+    13  & -28 & 0 \\
+   -32  &  64 & 0 \\
+    24  & -48 & 0 \\
+     0  &  16 & 0 \\
+     0  &   0 & 1
+  \end{bmatrix}
+\]
+
+Reading each column:
+\begin{itemize}
+  \item \textbf{$x$ column:} $[13, -32, 24, 0, 0]^T$
+        --- coefficients of $13u^4 - 32u^3 + 24u^2$.
+  \item \textbf{$y$ column:} $[-28, 64, -48, 16, 0]^T$
+        --- coefficients of $-28u^4 + 64u^3 - 48u^2 + 16u$.
+  \item \textbf{$z$ column:} $[0, 0, 0, 0, 1]^T$
+        --- constant polynomial $z(u) = 1$.
+\end{itemize}
+
+\begin{examplebox}
+\textbf{Verify the $x$ column by hand:}
+
+$M \cdot G_x = M \cdot [0, 0, 4, 4, 5]^T$.
+Multiplying row by row:
+
+\[
+  \text{Row 0 (}u^4\text{):}\quad
+  1(0)+(-4)(0)+6(4)+(-4)(4)+1(5) = 0+0+24-16+5 = 13 \checkmark
+\]
+\[
+  \text{Row 1 (}u^3\text{):}\quad
+  (-4)(0)+12(0)+(-12)(4)+4(4)+0(5) = 0+0-48+16+0 = -32 \checkmark
+\]
+\[
+  \text{Row 2 (}u^2\text{):}\quad
+  6(0)+(-12)(0)+6(4)+0(4)+0(5) = 0+0+24+0+0 = 24 \checkmark
+\]
+\end{examplebox}
+
+
+% =============================================================
+\needspace{8\baselineskip}
+\section{Resulting Polynomials}
+% =============================================================
+
+\begin{minted}{text}
+  Resulting Polynomials
+  ----------------------------------------------------------------
+
+  x(u)  =  13u^4  - 32u^3  + 24u^2
+  y(u)  =  -28u^4  + 64u^3  - 48u^2  + 16u
+  z(u)  =  1
+\end{minted}
+
+These are the final monomial polynomials, read directly from
+the columns of $M \cdot G$:
+
+\[
+  x(u) = 13u^4 - 32u^3 + 24u^2
+\]
+\[
+  y(u) = -28u^4 + 64u^3 - 48u^2 + 16u
+\]
+\[
+  z(u) = 1
+\]
+
+These are identical to the polynomials produced by all
+previous scripts.
+The three methods (algebraic expansion, symbolic CAS,
+matrix method) converge to the same result.
+
+\begin{notebox}
+\textbf{Quick sanity checks:}
+
+$x(0) = 0$, $x(1) = 13 - 32 + 24 = 5$.
+The curve starts at $x=0$ and ends at $x=5 = P_4^x$. \checkmark
+
+$y(0) = 0$, $y(1) = -28 + 64 - 48 + 16 = 4$.
+The curve starts at $y=0$ and ends at $y=4 = P_4^y$. \checkmark
+
+$z(u) = 1$ for all $u$.
+The curve is entirely in the plane $z=1$. \checkmark
+\end{notebox}
+
+
+% =============================================================
+\needspace{8\baselineskip}
+\section{Evaluation Table}
+% =============================================================
+
+\begin{minted}{text}
+  Evaluation Table  -  P(u) = U * (M * G)
+  ----------------------------------------------------------------
+
+  +=============================================================+
+  | u       x(u)               y(u)               z(u)        |
+  |=============================================================|
+  | 0       0  (0.0000)        0  (0.0000)   1  (1.0000)      |
+  | 0.2500  269//256  (1.0508) 121//64 (1.8906) 1  (1.0000)   |
+  | 0.5000  45//16  (2.8125)   9//4  (2.2500)   1  (1.0000)   |
+  | 0.7500  1053//256 (4.1133) 201//64 (3.1406) 1  (1.0000)   |
+  | 1       5  (5.0000)        4  (4.0000)       1  (1.0000)  |
+  +=============================================================+
+\end{minted}
+
+The evaluation table is identical in content to script~03's
+Step~5 summary table.
+Each cell shows the exact rational result followed by
+the 4-decimal-place float in parentheses.
+
+\begin{center}
+\begin{tabular}{ccccc}
+\toprule
+$u$ & $x(u)$ exact & $x(u)$ decimal & $y(u)$ exact & $y(u)$ decimal \\
+\midrule
+$0$    & $0$              & 0.0000 & $0$       & 0.0000 \\
+$0.25$ & $269/256$        & 1.0508 & $121/64$  & 1.8906 \\
+$0.50$ & $45/16$          & 2.8125 & $9/4$     & 2.2500 \\
+$0.75$ & $1053/256$       & 4.1133 & $201/64$  & 3.1406 \\
+$1$    & $5$              & 5.0000 & $4$       & 4.0000 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\begin{examplebox}
+\textbf{Verify $x(0.5) = 45/16$:}
+
+At $u = 0.5$, the $U$ vector is
+$[\tfrac{1}{16}, \tfrac{1}{8}, \tfrac{1}{4}, \tfrac{1}{2}, 1]$.
+The $x$ column of $M \cdot G$ is $[13, -32, 24, 0, 0]$.
+
+\[
+  \tfrac{1}{16}(13) + \tfrac{1}{8}(-32) + \tfrac{1}{4}(24)
+  + \tfrac{1}{2}(0) + 1(0)
+  = \tfrac{13}{16} - 4 + 6
+  = \tfrac{13}{16} + 2
+  = \tfrac{45}{16}
+\]
+
+$45 \div 16 = 2.8125$. \checkmark
+\end{examplebox}
+
+
+% =============================================================
+\needspace{8\baselineskip}
+\section{Summary: Script 03 vs Script 04}
+% =============================================================
+
+\textit{The same computation, two different reading experiences.}
+
+\begin{center}
+\begin{tabular}{lll}
+\toprule
+Aspect & Script~03 & Script~04 \\
+\midrule
+Purpose & Teach the method step by step & Show the result concisely \\
+$M$ derivation & Shown column by column & Not shown \\
+Dot products & Shown per $u$ value & Not shown \\
+$G$ display & As a plain list & As a labelled matrix \\
+Output length & Long --- every step visible & Short --- results only \\
+Best used for & First reading, learning & Reference, verification \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\begin{notebox}
+\textbf{Which should you use?}
+
+Use script~03 when you want to understand \emph{why}
+the numbers come out the way they do ---
+when you are learning the matrix method or debugging.
+
+Use script~04 when you already understand the method
+and just want to \emph{see} the matrices and the final
+curve polynomials quickly.
+
+\textit{Script~03 is the lecture.
+Script~04 is the cheat sheet.
+Keep both.}
+\end{notebox}
+
+\vspace{2em}\hrule\vspace{0.5em}
+{\small\textcolor{gray}{%
+Output explanation for \texttt{04-bezier-matrix-straight.jl}, Case~2
+\textbar{} Directed and curated by E.R.\ Nurwijayadi
+\textbar{} Code and explanations AI-generated}}
+
+\end{document}

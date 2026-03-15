@@ -1,0 +1,73 @@
+    :root {
+      --accent:  #2563eb;
+      --accent2: #e11d48;
+      --accent3: #16a34a;
+      --muted:   #7b8499;
+      --label:   #4b5470;
+    }
+
+    body { background: #f4f6fb; padding: 24px 16px 48px; }
+
+    .page-header { max-width: 860px; margin: 0 auto 20px; display: flex; align-items: baseline; gap: 12px; }
+    .page-header h1 { margin: 0; font-size: 1.1rem; color: var(--accent); text-transform: uppercase; letter-spacing: 0.03em; }
+    .page-header span { font-size: 0.78rem; color: var(--muted); }
+
+    .main { max-width: 860px; margin: 0 auto; display: flex; flex-direction: column; gap: 14px; }
+
+    /* Card header title override */
+    .card-header-title {
+      font-size: 0.64rem !important;
+      font-weight: 700 !important;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--muted) !important;
+      padding: 10px 16px !important;
+    }
+
+    /* Case selector */
+    .case-btn { flex: 1; }
+
+    /* u slider */
+    .u-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem; }
+    .u-badge { font-size: 0.85rem; font-weight: 600; color: var(--accent); background: #eff4ff; padding: 1px 8px; border-radius: 4px; font-family: monospace; }
+    input[type=range] { width: 100%; -webkit-appearance: none; height: 4px; background: #c8d0e0; border-radius: 4px; outline: none; cursor: pointer; }
+    input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 15px; height: 15px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 3px #eff4ff; cursor: grab; }
+
+    /* Math display areas */
+    .math-block {
+      font-size: 1rem;
+      overflow-x: auto;
+      padding: 6px 0;
+      min-height: 2rem;
+    }
+
+    /* Section label */
+    .sec-label {
+      font-size: 0.62rem;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 0.5rem;
+    }
+
+    /* Poly rows */
+    .poly-row { margin-bottom: 0.5rem; overflow-x: auto; }
+    .poly-row:last-child { margin-bottom: 0; }
+
+    /* Evaluation table */
+    .eval-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+    .eval-table th { font-size: 0.62rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); border-bottom: 2px solid #dde2ee; padding: 6px 12px; text-align: center; }
+    .eval-table td { border-bottom: 1px solid #edf0f7; padding: 6px 12px; text-align: center; color: var(--label); }
+    .eval-table tr.highlight td { background: #eff4ff; }
+    .eval-table tr:last-child td { border-bottom: none; }
+    .eval-table .u-col { font-family: monospace; font-weight: 600; color: var(--accent); }
+    .eval-table .val-exact { font-size: 0.78rem; }
+    .eval-table .val-dec { font-size: 0.7rem; color: var(--muted); margin-top: 1px; }
+
+    /* Matrix layout — two matrices side by side when space allows */
+    .matrix-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    @media (max-width: 600px) { .matrix-pair { grid-template-columns: 1fr; } }
+
+    /* Slider u-val highlight row label */
+    .u-slider-label { font-size: 0.7rem; color: var(--accent); font-weight: 600; font-family: monospace; }

@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Vue 3 + Bulma Quickstart</title>
+    <!-- 1. Link to your local Bulma CSS -->
+    <link rel="stylesheet" href="bulma.min.css">
+</head>
+<body>
+    <section class="section">
+        <div class="container">
+            <div class="box">
+                <!-- 2. Vue will control this div -->
+                <div id="app">
+                    <h1 class="title is-4">Vue 3 Counter</h1>
+                    <p class="subtitle">Button clicked: <strong>{{ count }}</strong> times</p>
+                    <button class="button is-primary" @click="increment">
+                        Click me
+                    </button>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- 3. Link to your local Vue 3 library -->
+    <script src="vue.global.prod.js"></script>
+
+    <script>
+        // 4. Create the Vue app (just like the W3Schools example)
+        const app = Vue.createApp({
+            // Data must be a function that returns an object
+            data() {
+                return {
+                    count: 0
+                }
+            },
+            // Methods are where you define functions
+            methods: {
+                increment() {
+                    this.count++ // 'this' refers to the app instance
+                }
+            }
+        })
+
+        // 5. Mount the app to the HTML element with id="app"
+        app.mount('#app')
+    </script>
+</body>
+</html>

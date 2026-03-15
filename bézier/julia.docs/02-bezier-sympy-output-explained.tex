@@ -1,0 +1,651 @@
+% ============================================================
+% 02-bezier-sympy-output-explained.tex
+% Compile with:  pdflatex -shell-escape 02-bezier-sympy-output-explained.tex
+% Run twice for table of contents.
+% ============================================================
+
+\documentclass[12pt, a4paper]{article}
+
+% ---- Encoding & fonts ----------------------------------------
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+
+% ---- Page geometry -------------------------------------------
+\usepackage[
+  top=2.5cm, bottom=2.5cm,
+  left=2.8cm, right=2.8cm
+]{geometry}
+
+% ---- Colours -------------------------------------------------
+\usepackage[dvipsnames]{xcolor}
+\definecolor{codebg}{RGB}{248,248,248}
+\definecolor{rulecolor}{RGB}{180,180,180}
+\definecolor{examplebg}{RGB}{240,248,255}
+\definecolor{examplerule}{RGB}{100,149,237}
+\definecolor{notebg}{RGB}{255,250,230}
+\definecolor{noterule}{RGB}{210,180,50}
+\definecolor{diffbg}{RGB}{240,255,240}
+\definecolor{diffrule}{RGB}{80,160,80}
+
+% ---- Minted --------------------------------------------------
+\usepackage{minted}
+\setminted[text]{
+  bgcolor    = codebg,
+  frame      = leftline,
+  framerule  = 1.5pt,
+  rulecolor  = rulecolor,
+  fontsize   = \small,
+  breaklines = true,
+}
+
+% ---- Math ----------------------------------------------------
+\usepackage{amsmath}
+\usepackage{amssymb}
+
+% ---- Boxes ---------------------------------------------------
+\usepackage{mdframed}
+
+\newmdenv[
+  backgroundcolor  = examplebg,
+  linecolor        = examplerule,
+  linewidth        = 1.5pt,
+  leftline=true, rightline=false, topline=false, bottomline=false,
+  innerleftmargin=10pt, innerrightmargin=8pt,
+  innertopmargin=6pt, innerbottommargin=6pt,
+  skipabove=6pt, skipbelow=4pt,
+]{examplebox}
+
+\newmdenv[
+  backgroundcolor  = notebg,
+  linecolor        = noterule,
+  linewidth        = 1.5pt,
+  leftline=true, rightline=false, topline=false, bottomline=false,
+  innerleftmargin=10pt, innerrightmargin=8pt,
+  innertopmargin=6pt, innerbottommargin=6pt,
+  skipabove=6pt, skipbelow=4pt,
+]{notebox}
+
+\newmdenv[
+  backgroundcolor  = diffbg,
+  linecolor        = diffrule,
+  linewidth        = 1.5pt,
+  leftline=true, rightline=false, topline=false, bottomline=false,
+  innerleftmargin=10pt, innerrightmargin=8pt,
+  innertopmargin=6pt, innerbottommargin=6pt,
+  skipabove=6pt, skipbelow=4pt,
+]{diffbox}
+
+% ---- Hyperlinks ----------------------------------------------
+\usepackage[colorlinks=true, linkcolor=black, urlcolor=MidnightBlue]{hyperref}
+
+% ---- Misc ----------------------------------------------------
+\usepackage{booktabs}
+\usepackage{needspace}
+\usepackage{parskip}
+\usepackage{titlesec}
+\usepackage{fancyhdr}
+\usepackage{datetime2}
+
+% ---- Section formatting --------------------------------------
+\titleformat{\section}
+  {\large\bfseries\color{MidnightBlue}}
+  {\thesection.}{0.6em}{}[\vspace{-4pt}\rule{\linewidth}{0.4pt}]
+\titleformat{\subsection}
+  {\normalsize\bfseries\color{BrickRed}}
+  {\thesubsection.}{0.5em}{}
+
+% ---- Header / footer -----------------------------------------
+\pagestyle{fancy}
+\fancyhf{}
+\rhead{\textcolor{gray}{\small 02-bezier-sympy-output-explained}}
+\lhead{\textcolor{gray}{\small B\'ezier Symbolic --- Output Explanation}}
+\cfoot{\thepage}
+\renewcommand{\headrulewidth}{0.3pt}
+
+% ---- Helpers -------------------------------------------------
+\newcommand{\cd}[1]{\texttt{#1}}
+\newcommand{\NEW}{\textcolor{diffrule}{\textbf{[New]}}\;}
+
+% ---- Title ---------------------------------------------------
+\title{%
+  \vspace{1cm}
+  {\LARGE\bfseries B\'ezier Curve --- Algebraic Expansion (Symbolic)}\\[0.4em]
+  {\large Explanation of the Program Output}\\[0.4em]
+  {\normalsize Case 2: Quartic 3-D, 5 Control Points}\\[0.4em]
+  {\normalsize\texttt{02-bezier-sympy.jl}}
+}
+\author{E.R.\ Nurwijayadi}
+\date{\DTMtoday}
+
+
+% =============================================================
+\begin{document}
+% =============================================================
+
+\maketitle
+\thispagestyle{empty}
+
+\begin{center}
+\textit{Directed and curated by E.R.\ Nurwijayadi.
+Code and explanations AI-generated.}
+\end{center}
+
+\begin{center}
+\begin{minipage}{0.85\textwidth}
+\small
+This document explains the output of \cd{02-bezier-sympy.jl}
+when run with \cd{CASE = 2}.
+It is a companion to the output explanation for \cd{01-bezier-algebra.jl}.
+The curve and control points are identical --- what changed is the
+computation engine.
+Script~01 used a hand-written \cd{Poly} type with floating-point arithmetic.
+Script~02 uses \textbf{Symbolics.jl}, a computer algebra system,
+keeping all values as exact fractions throughout.
+\end{minipage}
+\end{center}
+
+\vspace{1em}\hrule\vspace{1.5em}
+\tableofcontents
+\newpage
+
+
+% =============================================================
+\needspace{8\baselineskip}
+\section{What Changed from Script 01}
+% =============================================================
+
+\textit{Same curve. Same case. Same five steps.
+Different engine under the hood ---
+and the difference shows up in every line of the output.}
+
+Script~01 (\cd{01-bezier-algebra.jl}) built its own \cd{Poly} type
+and stored polynomial coefficients as \cd{Float64} numbers.
+All arithmetic was floating-point.
+
+Script~02 (\cd{02-bezier-sympy.jl}) replaces the hand-rolled
+\cd{Poly} type entirely with \textbf{Symbolics.jl} --- Julia's
+computer algebra system (CAS).
+Instead of numbers, the program manipulates \emph{symbolic expressions}
+in the variable \cd{u}.
+Coefficients are stored as \cd{Rational\{Int\}} --- exact integer
+fractions --- so there is no floating-point rounding anywhere
+until the very last step when a decimal is explicitly requested.
+
+\begin{diffbox}
+\textbf{The three visible differences in the output:}
+
+\medskip
+\begin{tabular}{lp{4.5cm}p{4.5cm}}
+\toprule
+Location & Script 01 & Script 02 \\
+\midrule
+Monomial coefficients &
+  Plain integers: \cd{24u\^{}2} &
+  Rational notation: \cd{(24//1)*(u\^{}2)} \\[6pt]
+Evaluation table &
+  One column per axis (decimal only) &
+  Two columns per axis: exact fraction + decimal \\[6pt]
+$u$ values &
+  Decimals: \cd{0.25}, \cd{0.50} \ldots &
+  Exact fractions: \cd{1//4}, \cd{1//2} \ldots \\[6pt]
+Verification block &
+  Two lines: expression + decimal &
+  Three lines: expression, exact fraction, then decimal \\
+\bottomrule
+\end{tabular}
+
+\medskip
+Steps~1, 2, and~3 look almost identical between the two scripts ---
+those steps are symbolic descriptions and the expansion results
+are the same polynomials.
+The real difference is visible in Steps~4 and~5.
+\end{diffbox}
+
+
+% =============================================================
+\needspace{8\baselineskip}
+\section{Header and Control Points}
+% =============================================================
+
+\begin{minted}{text}
+==================================================================
+  Bezier Curve - Algebraic Expansion  (via Symbolics.jl)
+  Case 2  |  Quartic  |  3D  |  5 Control Points
+==================================================================
+
+  Control Points:
+    P0 :  x = 0  y = 0  z = 1
+    P1 :  x = 0  y = 4  z = 1
+    P2 :  x = 4  y = 0  z = 1
+    P3 :  x = 4  y = 4  z = 1
+    P4 :  x = 5  y = 4  z = 1
+\end{minted}
+
+The subtitle \textit{via Symbolics.jl} is the only header difference
+from Script~01.
+The control points are identical.
+Internally, however, these coordinates are stored as
+\cd{Rational\{Int\}} (exact integer fractions) rather than
+\cd{Float64} --- so \cd{4} here means exactly $\frac{4}{1}$,
+not the floating-point approximation $4.0$.
+
+This distinction matters later: every coefficient in every
+polynomial will be an exact fraction, produced entirely by
+integer arithmetic.
+
+
+% =============================================================
+\needspace{8\baselineskip}
+\section{Steps 1, 2, and 3 --- Identical in Purpose}
+% =============================================================
+
+\begin{minted}{text}
+  STEP 1 - Bernstein Form
+  ----------------------------------------------------------------
+  P(u)  =  [x(u)  y(u)  z(u)]
+
+  P(u)  =  B(4,0)*P0 + B(4,1)*P1 + ... + B(4,4)*P4
+
+  where:
+    B(4,0,u)  =  (1-u)^4
+    B(4,1,u)  =  4u(1-u)^3
+    ...
+\end{minted}
+
+\begin{minted}{text}
+  STEP 2 - Substitution of Control Point Coordinates
+  ----------------------------------------------------------------
+  x(u)  =  (1-u)^4*0  +  4u(1-u)^3*0  +  6u^2(1-u)^2*4  + ...
+  ...
+  (Each basis term is now expanded by Symbolics.jl)
+\end{minted}
+
+\begin{minted}{text}
+  STEP 3 - Expand Each Bernstein Basis Term
+  ----------------------------------------------------------------
+  B(4,0,u)  =  (1-u)^4
+           =  1 - 4u + 6(u^2) - 4(u^3) + u^4
+
+  B(4,1,u)  =  4u(1-u)^3
+           =  4u - 12(u^2) + 12(u^3) - 4(u^4)
+  ...
+\end{minted}
+
+These three steps are structurally identical to Script~01.
+The Bernstein formula, the substitution, and the expansion results
+are all the same polynomials.
+
+One small visual difference in Step~3: Symbolics.jl wraps
+higher powers in parentheses --- \cd{6(u\^{}2)} rather than \cd{6u\^{}2}.
+This is just a display choice by the CAS; mathematically the
+expressions are identical.
+
+\begin{notebox}
+\textbf{Step 2 closing line:}
+\cd{(Each basis term is now expanded by Symbolics.jl)}
+
+In Script~01 the equivalent line said
+\cd{(Each basis term will now be expanded individually)},
+referring to the hand-written \cd{expand\_bernstein} function.
+Here it says \cd{expanded by Symbolics.jl} ---
+the CAS calls its own \cd{expand()} function internally,
+which applies the binomial theorem and collects like terms
+in a single operation.
+\end{notebox}
+
+
+% =============================================================
+\needspace{8\baselineskip}
+\section{Step 4 --- Collecting Terms}
+% =============================================================
+
+\begin{minted}{text}
+  STEP 4 - Collect Terms - Final Monomial Polynomial
+  ----------------------------------------------------------------
+  x(u) - weighted contributions:
+    B(4,0)*   0  =  0
+    B(4,1)*   0  =  0
+    B(4,2)*   4  =  (24//1)*(u^2) - (48//1)*(u^3) + (24//1)*(u^4)
+    B(4,3)*   4  =  (16//1)*(u^3) - (16//1)*(u^4)
+    B(4,4)*   5  =  (5//1)*(u^4)
+\end{minted}
+
+\needspace{5\baselineskip}
+\subsection{Understanding \texttt{(24//1)*(u\^{}2)}}
+
+This notation is the most unfamiliar part of the output
+for anyone coming from Script~01.
+It needs to be read in two pieces.
+
+\textbf{The \cd{//} operator --- Julia's rational number literal.}
+In Julia, \cd{a//b} creates an \emph{exact rational number}
+$\frac{a}{b}$ stored as a pair of integers.
+It never loses precision.
+
+\begin{examplebox}
+\cd{24//1} is the rational number $\frac{24}{1} = 24$, exactly.
+
+\cd{1//4} is the rational number $\frac{1}{4} = 0.25$, exactly.
+Unlike \cd{Float64(0.25)}, this is represented without any binary
+rounding --- it is a genuine fraction in memory.
+
+\cd{1//3} is $\frac{1}{3}$, exactly.
+\cd{Float64(1/3)} would be \cd{0.3333333333333333...} with rounding.
+\cd{1//3} has no rounding at all.
+\end{examplebox}
+
+\textbf{Why does \cd{24} become \cd{24//1}?}
+When Symbolics.jl expands an expression whose coefficients
+come from a \cd{Rational\{Int\}} matrix, it preserves the
+rational type throughout.
+The coordinate \cd{4} was stored as \cd{4//1};
+multiplying it by the integer coefficient \cd{6}
+(from $\binom{4}{2} = 6$) gives \cd{6 * (4//1) = 24//1}.
+Symbolics.jl then prints this rational coefficient
+as \cd{(24//1)} to make the type explicit.
+
+In short: \cd{(24//1)*(u\^{}2)} means exactly $24u^2$.
+The fraction notation is a transparency feature,
+not a complication.
+
+\begin{examplebox}
+\textbf{Reading Step~4 contributions for $x(u)$:}
+
+\medskip
+\begin{tabular}{lll}
+\toprule
+Symbolic output & Meaning & Script 01 equivalent \\
+\midrule
+\cd{(24//1)*(u\^{}2) - (48//1)*(u\^{}3) + (24//1)*(u\^{}4)} &
+  $24u^2 - 48u^3 + 24u^4$ &
+  \cd{24u\^{}2 - 48u\^{}3 + 24u\^{}4} \\[4pt]
+\cd{(16//1)*(u\^{}3) - (16//1)*(u\^{}4)} &
+  $16u^3 - 16u^4$ &
+  \cd{16u\^{}3 - 16u\^{}4} \\[4pt]
+\cd{(5//1)*(u\^{}4)} &
+  $5u^4$ &
+  \cd{5u\^{}4} \\
+\bottomrule
+\end{tabular}
+
+\medskip
+The numbers are identical to Script~01.
+Only the display format changed because the type changed.
+\end{examplebox}
+
+\needspace{5\baselineskip}
+\subsection{Collected Polynomials}
+
+\begin{minted}{text}
+  Collected:
+    x(u)  =  (24//1)*(u^2) - (32//1)*(u^3) + (13//1)*(u^4)
+    y(u)  =  (16//1)*u - (48//1)*(u^2) + (64//1)*(u^3) - (28//1)*(u^4)
+    z(u)  =  1
+\end{minted}
+
+Same final polynomials as Script~01:
+\[
+  x(u) = 24u^2 - 32u^3 + 13u^4
+\]
+\[
+  y(u) = 16u - 48u^2 + 64u^3 - 28u^4
+\]
+\[
+  z(u) = 1
+\]
+
+The $z(u) = 1$ result is particularly clean ---
+Symbolics.jl simply outputs \cd{1} with no rational wrapper,
+because the sum of all Bernstein polynomials is identically 1
+and the CAS recognises this and simplifies it completely.
+
+
+% =============================================================
+\needspace{8\baselineskip}
+\section{Step 5 --- Evaluation Table with Exact Fractions}
+% =============================================================
+
+This is the step that most visibly sets Script~02 apart.
+
+\begin{minted}{text}
+       u  x(u) exact       decimal  y(u) exact       decimal  z(u) exact   decimal
+  ------------------------------------------------------------------------------------
+       0           0      0.000000           0      0.000000           1  1.000000
+    1//4    269//256      1.050781     121//64      1.890625           1  1.000000
+    1//2      45//16      2.812500        9//4      2.250000           1  1.000000
+    3//4   1053//256      4.113281     201//64      3.140625           1  1.000000
+       1           5      5.000000           4      4.000000           1  1.000000
+\end{minted}
+
+\needspace{5\baselineskip}
+\subsection{Two columns per axis}
+
+Each axis now has two columns: \textbf{exact} and \textbf{decimal}.
+
+The \textbf{exact} column is the result of substituting the
+exact rational $u$ value (e.g.\ \cd{1//4}) into the symbolic
+polynomial and simplifying --- the CAS returns an exact fraction.
+
+The \textbf{decimal} column converts that fraction to \cd{Float64}
+only at the very last moment, purely for human readability.
+
+\begin{diffbox}
+\textbf{This is the core advantage of symbolic computation.}
+
+In Script~01, $x(0.25)$ was computed as:
+\[
+  24 \times 0.0625 - 32 \times 0.015625 + 13 \times 0.00390625
+  = 1.05078125
+\]
+using floating-point arithmetic at every multiplication.
+
+In Script~02, $x\!\left(\tfrac{1}{4}\right)$ is computed as:
+\[
+  24 \times \frac{1}{16} - 32 \times \frac{1}{64}
+  + 13 \times \frac{1}{256}
+  = \frac{384}{256} - \frac{128}{256} + \frac{13}{256}
+  = \frac{269}{256}
+\]
+using exact integer fraction arithmetic.
+The decimal $1.050781$ is then read off from $\frac{269}{256}$.
+No rounding occurred anywhere in the computation.
+\end{diffbox}
+
+\needspace{5\baselineskip}
+\subsection{Verifying the exact fractions by hand}
+
+\begin{examplebox}
+\textbf{Verify $x\!\left(\tfrac{1}{4}\right) = \dfrac{269}{256}$:}
+
+\medskip
+Substitute $u = \tfrac{1}{4}$ into $x(u) = 24u^2 - 32u^3 + 13u^4$:
+
+\[
+  24 \cdot \left(\tfrac{1}{4}\right)^2
+  - 32 \cdot \left(\tfrac{1}{4}\right)^3
+  + 13 \cdot \left(\tfrac{1}{4}\right)^4
+  = \frac{24}{16} - \frac{32}{64} + \frac{13}{256}
+\]
+
+Converting to a common denominator of 256:
+\[
+  = \frac{384}{256} - \frac{128}{256} + \frac{13}{256}
+  = \frac{384 - 128 + 13}{256}
+  = \frac{269}{256}
+\]
+
+As decimal: $269 \div 256 = 1.05078125 \approx 1.050781$ \checkmark
+\end{examplebox}
+
+\begin{examplebox}
+\textbf{Verify $y\!\left(\tfrac{1}{2}\right) = \dfrac{9}{4}$:}
+
+\medskip
+Substitute $u = \tfrac{1}{2}$ into $y(u) = 16u - 48u^2 + 64u^3 - 28u^4$:
+
+\[
+  16 \cdot \tfrac{1}{2}
+  - 48 \cdot \tfrac{1}{4}
+  + 64 \cdot \tfrac{1}{8}
+  - 28 \cdot \tfrac{1}{16}
+  = 8 - 12 + 8 - \tfrac{7}{4}
+  = 4 - \tfrac{7}{4}
+  = \tfrac{9}{4}
+\]
+
+As decimal: $9 \div 4 = 2.25$ \checkmark
+\end{examplebox}
+
+\begin{examplebox}
+\textbf{Verify $x(1) = 5$ and $y(1) = 4$:}
+
+\[
+  x(1) = 24 - 32 + 13 = 5 \checkmark
+\]
+\[
+  y(1) = 16 - 48 + 64 - 28 = 4 \checkmark
+\]
+
+At the endpoints the exact values are whole integers ---
+no fractions needed. This confirms the curve starts at $P_0 = (0,0,1)$
+and ends at $P_4 = (5,4,1)$.
+\end{examplebox}
+
+\needspace{5\baselineskip}
+\subsection{The $z$ column}
+
+Every entry in the $z$ column is exactly \cd{1} with decimal
+\cd{1.000000}.
+This is the partition-of-unity property in action:
+all five $z$-coordinates are 1, so $z(u) = 1$ for all $u$,
+and substituting any rational $u$ into the constant polynomial
+$z(u) = 1$ gives exactly \cd{1} --- no fraction, no decimal needed.
+
+
+% =============================================================
+\needspace{8\baselineskip}
+\section{Verification Block}
+% =============================================================
+
+\begin{minted}{text}
+  Verification at u = 1//2:
+    x(1//2)  =  (24//1)*(u^2) - (32//1)*(u^3) + (13//1)*(u^4)
+             =  45//16
+             =  45//16  ~  2.812500
+
+    y(1//2)  =  (16//1)*u - (48//1)*(u^2) + (64//1)*(u^3) - (28//1)*(u^4)
+             =  9//4
+             =  9//4  ~  2.250000
+
+    z(1//2)  =  1
+             =  1
+             =  1  ~  1.000000
+\end{minted}
+
+The verification block now has \textbf{three lines} per axis,
+compared to Script~01's two.
+
+\begin{center}
+\begin{tabular}{lp{4cm}p{5cm}}
+\toprule
+Line & Content & Meaning \\
+\midrule
+1 & Symbolic expression &
+  The full polynomial as Symbolics.jl stored it \\[4pt]
+2 & Exact rational result &
+  The CAS substituted $u = \tfrac{1}{2}$ and simplified to a fraction \\[4pt]
+3 & Fraction $\approx$ decimal &
+  The same fraction converted to \cd{Float64} for readability \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\begin{examplebox}
+\textbf{Tracing $x\!\left(\tfrac{1}{2}\right)$ through the three lines:}
+
+\medskip
+\textbf{Line 1} --- the stored symbolic expression:
+\[
+  (24/\!/1)\cdot u^2 - (32/\!/1)\cdot u^3 + (13/\!/1)\cdot u^4
+  \quad\equiv\quad 24u^2 - 32u^3 + 13u^4
+\]
+
+\textbf{Line 2} --- substitute $u = \tfrac{1}{2}$ and simplify:
+\[
+  24 \cdot \tfrac{1}{4} - 32 \cdot \tfrac{1}{8} + 13 \cdot \tfrac{1}{16}
+  = 6 - 4 + \tfrac{13}{16}
+  = 2 + \tfrac{13}{16}
+  = \tfrac{45}{16}
+\]
+So \cd{45//16} is correct. \checkmark
+
+\textbf{Line 3} --- convert to decimal:
+$45 \div 16 = 2.8125$, displayed as \cd{2.812500}. \checkmark
+\end{examplebox}
+
+\begin{notebox}
+\textbf{Why show the fraction twice (lines 2 and 3)?}
+
+Line~2 is the CAS result as returned by \cd{substitute()} ---
+it is still a Symbolics expression, printed as \cd{45//16}.
+Line~3 is after calling \cd{to\_exact\_rational()} to extract
+the plain Julia \cd{Rational\{Int\}} value, and then
+\cd{Float64()} for the decimal.
+The two-step display confirms that the CAS result and the
+extracted rational agree before the decimal conversion.
+\end{notebox}
+
+
+% =============================================================
+\needspace{8\baselineskip}
+\section{Why Exact Arithmetic Matters}
+% =============================================================
+
+\textit{You might wonder: both scripts give the same curve.
+So why bother with the extra complexity of symbolic computation?}
+
+The answer is trust and precision.
+
+With Script~01 (floating-point), the decimal \cd{1.050781} could
+in principle be a rounded approximation of some irrational number
+--- you cannot tell just from the decimal alone.
+
+With Script~02 (exact), the result \cd{269//256} is a \emph{proof}:
+the exact value of $x\!\left(\tfrac{1}{4}\right)$ on this curve
+is the fraction $\frac{269}{256}$.
+No rounding ever occurred.
+You can verify it with pencil and paper.
+
+For a quartic curve with integer control points and rational
+$u$ values, the output is always a rational number.
+Script~02 \emph{finds and displays} that rational number exactly.
+Script~01 \emph{approximates} it with a float.
+
+Both are correct for practical use.
+But Script~02 gives you something Script~01 cannot:
+a result you can algebraically verify without worrying
+about floating-point error.
+
+\begin{notebox}
+\textbf{A note on the \cd{(24//1)} display.}
+
+You might wish Symbolics.jl printed \cd{24} instead of \cd{(24//1)}.
+That is a reasonable aesthetic preference.
+The fraction notation is the CAS being explicit about types ---
+it is telling you these are rational coefficients,
+not floating-point approximations.
+Once you have read \cd{24//1} as ``exactly 24'' a few times,
+it stops feeling strange.
+
+\textit{Like meeting someone with an unusual name.
+After the third time you just call them by it without thinking.}
+\end{notebox}
+
+\vspace{2em}\hrule\vspace{0.5em}
+{\small\textcolor{gray}{%
+Output explanation for \texttt{02-bezier-sympy.jl}, Case~2
+\textbar{} Code by E.R.\ Nurwijayadi
+\textbar{} Explanations prompt-directed by E.R.\ Nurwijayadi, AI-composed}}
+
+\end{document}

@@ -1,0 +1,462 @@
+% ============================================================
+% 05-bezier-matrix-sympy-text-output-explained.tex
+% Compile with:  pdflatex -shell-escape 05-bezier-matrix-sympy-text-output-explained.tex
+% Run twice for table of contents.
+% ============================================================
+
+\documentclass[12pt, a4paper]{article}
+
+% ---- Encoding & fonts ----------------------------------------
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+
+% ---- Page geometry -------------------------------------------
+\usepackage[
+  top=2.5cm, bottom=2.5cm,
+  left=2.8cm, right=2.8cm
+]{geometry}
+
+% ---- Colours -------------------------------------------------
+\usepackage[dvipsnames]{xcolor}
+\definecolor{codebg}{RGB}{248,248,248}
+\definecolor{rulecolor}{RGB}{180,180,180}
+\definecolor{examplebg}{RGB}{240,248,255}
+\definecolor{examplerule}{RGB}{100,149,237}
+\definecolor{notebg}{RGB}{255,250,230}
+\definecolor{noterule}{RGB}{210,180,50}
+\definecolor{diffbg}{RGB}{240,255,240}
+\definecolor{diffrule}{RGB}{80,160,80}
+
+% ---- Minted --------------------------------------------------
+\usepackage{minted}
+\setminted[text]{
+  bgcolor    = codebg,
+  frame      = leftline,
+  framerule  = 1.5pt,
+  rulecolor  = rulecolor,
+  fontsize   = \small,
+  breaklines = true,
+}
+
+% ---- Math ----------------------------------------------------
+\usepackage{amsmath}
+\usepackage{amssymb}
+
+% ---- Boxes ---------------------------------------------------
+\usepackage{mdframed}
+
+\newmdenv[
+  backgroundcolor  = examplebg,
+  linecolor        = examplerule, linewidth=1.5pt,
+  leftline=true, rightline=false, topline=false, bottomline=false,
+  innerleftmargin=10pt, innerrightmargin=8pt,
+  innertopmargin=6pt, innerbottommargin=6pt,
+  skipabove=6pt, skipbelow=4pt,
+]{examplebox}
+
+\newmdenv[
+  backgroundcolor  = notebg,
+  linecolor        = noterule, linewidth=1.5pt,
+  leftline=true, rightline=false, topline=false, bottomline=false,
+  innerleftmargin=10pt, innerrightmargin=8pt,
+  innertopmargin=6pt, innerbottommargin=6pt,
+  skipabove=6pt, skipbelow=4pt,
+]{notebox}
+
+\newmdenv[
+  backgroundcolor  = diffbg,
+  linecolor        = diffrule, linewidth=1.5pt,
+  leftline=true, rightline=false, topline=false, bottomline=false,
+  innerleftmargin=10pt, innerrightmargin=8pt,
+  innertopmargin=6pt, innerbottommargin=6pt,
+  skipabove=6pt, skipbelow=4pt,
+]{diffbox}
+
+% ---- Hyperlinks ----------------------------------------------
+\usepackage[colorlinks=true, linkcolor=black, urlcolor=MidnightBlue]{hyperref}
+
+% ---- Misc ----------------------------------------------------
+\usepackage{booktabs}
+\usepackage{needspace}
+\usepackage{parskip}
+\usepackage{titlesec}
+\usepackage{fancyhdr}
+\usepackage{datetime2}
+
+% ---- Section formatting --------------------------------------
+\titleformat{\section}
+  {\large\bfseries\color{MidnightBlue}}
+  {\thesection.}{0.6em}{}[\vspace{-4pt}\rule{\linewidth}{0.4pt}]
+\titleformat{\subsection}
+  {\normalsize\bfseries\color{BrickRed}}
+  {\thesubsection.}{0.5em}{}
+
+% ---- Header / footer -----------------------------------------
+\pagestyle{fancy}
+\fancyhf{}
+\rhead{\textcolor{gray}{\small 05-bezier-matrix-sympy-text-output-explained}}
+\lhead{\textcolor{gray}{\small B\'ezier Matrix Symbolic --- Output Explanation}}
+\cfoot{\thepage}
+\renewcommand{\headrulewidth}{0.3pt}
+
+% ---- Helpers -------------------------------------------------
+\newcommand{\cd}[1]{\texttt{#1}}
+
+% ---- Title ---------------------------------------------------
+\title{%
+  \vspace{1cm}
+  {\LARGE\bfseries B\'ezier Curve --- Matrix Method (Symbolic)}\\[0.4em]
+  {\large $P(u) = U \cdot M \cdot G$ \quad via Symbolics.jl}\\[0.4em]
+  {\large Explanation of the Program Output}\\[0.4em]
+  {\normalsize Case 2: Quartic 3-D, 5 Control Points}\\[0.4em]
+  {\normalsize\texttt{05-bezier-matrix-sympy-text.jl}}
+}
+\author{E.R.\ Nurwijayadi}
+\date{\DTMtoday}
+
+
+% =============================================================
+\begin{document}
+% =============================================================
+
+\maketitle
+\thispagestyle{empty}
+
+\begin{center}
+\textit{Directed and curated by E.R.\ Nurwijayadi.
+Code and explanations AI-generated.}
+\end{center}
+
+\begin{center}
+\begin{minipage}{0.85\textwidth}
+\small
+This document explains the output of
+\cd{05-bezier-matrix-sympy-text.jl} when run with \cd{CASE = 2}.
+This script is a hybrid: it uses the straight output structure
+of script~04 (five flat sections, no derivation steps)
+combined with exact \cd{Rational\{Int\}} arithmetic throughout,
+and Symbolics.jl for polynomial formatting.
+The output is almost identical to script~04 with three
+specific differences.
+\end{minipage}
+\end{center}
+
+\vspace{1em}\hrule\vspace{1.5em}
+\tableofcontents
+\newpage
+
+
+% =============================================================
+\needspace{8\baselineskip}
+\section{What Changed from Script 04}
+% =============================================================
+
+\textit{Script~05 is script~04 with exact arithmetic substituted
+for floating-point.
+The output structure is identical --- same five sections,
+same table format.
+The differences are surgical.}
+
+\begin{diffbox}
+\textbf{Three differences from script~04:}
+
+\medskip
+\begin{tabular}{lp{4.5cm}p{4.5cm}}
+\toprule
+Location & Script~04 & Script~05 \\
+\midrule
+$u$ values in table &
+  Decimals: \cd{0.2500}, \cd{0.5000}, \cd{0.7500} &
+  Exact fractions: \cd{1//4}, \cd{1//2}, \cd{3//4} \\[6pt]
+Resulting Polynomials section &
+  Plain strings: \cd{13u\^{}4 - 32u\^{}3 + 24u\^{}2} &
+  Symbolics.jl format: \cd{(24//1)*(u\^{}2) - (32//1)*(u\^{}3) + (13//1)*(u\^{}4)} \\[6pt]
+Section subtitle &
+  \cd{Resulting Polynomials} &
+  \cd{Resulting Polynomials (via Symbolics.jl)} \\
+\bottomrule
+\end{tabular}
+
+\medskip
+The $G$, $M$, and $M \cdot G$ matrices look identical
+because all their entries happen to be whole numbers.
+\cd{Rational\{Int\}} displays integers without the \cd{//1}
+suffix when the denominator is 1.
+\end{diffbox}
+
+
+% =============================================================
+\needspace{8\baselineskip}
+\section{Header}
+% =============================================================
+
+\begin{minted}{text}
+==================================================================
+  Bezier Curve - Matrix Method  [P(u) = U * M * G]  (Symbolics.jl)
+  Case 2  |  Quartic  |  3D  |  5 Control Points
+==================================================================
+\end{minted}
+
+The title now includes \cd{(Symbolics.jl)} to flag
+that the polynomial formatting uses the CAS.
+Everything else is unchanged from script~04.
+
+
+% =============================================================
+\needspace{8\baselineskip}
+\section{$G$, $M$, and $M \cdot G$ --- Unchanged in Appearance}
+% =============================================================
+
+\begin{minted}{text}
+  G  - Geometry Matrix (Control Points)
+      x  y  z  ...  P0  0  0  1  ...  P4  5  4  1
+
+  M  - Basis Matrix (derived via binomial)
+       P0   P1   P2  P3  P4
+  u^4   1   -4    6  -4   1  ...
+
+  M * G  - Polynomial Coefficient Matrix
+         x    y  z
+  u^4   13  -28  0  ...
+\end{minted}
+
+These three sections look byte-for-byte identical to script~04.
+The reason is that all values in $G$, $M$, and $M \cdot G$
+are whole numbers.
+\cd{Rational\{Int\}} stores them as fractions internally
+(e.g.\ \cd{13//1}), but the formatting function \cd{fmt\_rat}
+checks whether the denominator is 1 and prints only the
+numerator in that case --- so \cd{13//1} displays as \cd{13},
+not \cd{13//1}.
+
+\begin{notebox}
+\textbf{The subtitle change:} \cd{M --- Basis Matrix (derived via binomial)}
+
+Script~04 said \cd{derived from Bernstein}.
+Script~05 says \cd{derived via binomial}.
+Both mean the same thing --- the entries come from the
+binomial theorem applied to the Bernstein expansion ---
+but script~05 is slightly more precise about the mechanism.
+\end{notebox}
+
+
+% =============================================================
+\needspace{8\baselineskip}
+\section{Resulting Polynomials --- Symbolic Format}
+% =============================================================
+
+\begin{minted}{text}
+  Resulting Polynomials  (via Symbolics.jl)
+  ----------------------------------------------------------------
+
+  x(u)  =  (24//1)*(u^2) - (32//1)*(u^3) + (13//1)*(u^4)
+  y(u)  =  (16//1)*u - (48//1)*(u^2) + (64//1)*(u^3) - (28//1)*(u^4)
+  z(u)  =  1
+\end{minted}
+
+This section shows the most visible change from script~04.
+The polynomial strings are now produced by Symbolics.jl
+rather than by the hand-written \cd{fmt\_poly} function.
+
+\needspace{5\baselineskip}
+\subsection{Reading the Symbolics.jl notation}
+
+The notation \cd{(24//1)*(u\^{}2)} has been explained in the
+script~02 output explanation.
+To recap:
+
+\begin{itemize}
+  \item \cd{24//1} is the \cd{Rational\{Int\}} value
+        $\frac{24}{1} = 24$, printed with the rational type
+        made explicit.
+  \item \cd{*(u\^{}2)} is Symbolics.jl's way of writing
+        multiplication by $u^2$.
+  \item So \cd{(24//1)*(u\^{}2)} means exactly $24u^2$.
+\end{itemize}
+
+\begin{examplebox}
+\textbf{Script~04 vs Script~05 for $x(u)$:}
+
+\medskip
+Script~04 (hand-formatted):
+\begin{minted}{text}
+  x(u)  =  13u^4  - 32u^3  + 24u^2
+\end{minted}
+
+Script~05 (Symbolics.jl formatted):
+\begin{minted}{text}
+  x(u)  =  (24//1)*(u^2) - (32//1)*(u^3) + (13//1)*(u^4)
+\end{minted}
+
+Two things differ:
+\begin{enumerate}
+  \item \textbf{Coefficient notation:} plain \cd{13} vs
+        \cd{(13//1)}.
+        Both mean the same number; the rational wrapper
+        is Symbolics.jl being explicit about the type.
+  \item \textbf{Term ordering:} script~04 prints from
+        highest power down ($u^4$ first).
+        Symbolics.jl prints from lowest power up
+        ($u^2$ first) --- this is its default canonical ordering.
+\end{enumerate}
+
+The polynomials are mathematically identical.
+\end{examplebox}
+
+\begin{notebox}
+\textbf{Why does $z(u)$ still print as just \cd{1}?}
+
+The $z$ column of $M \cdot G$ is $[0, 0, 0, 0, 1]$ ---
+the constant polynomial.
+When Symbolics.jl builds the symbolic expression, it gets
+$0 \cdot u^4 + 0 \cdot u^3 + \cdots + 1 \cdot u^0 = 1$.
+A constant has no variable, so there is no \cd{(1//1)*u\^{}0}
+--- Symbolics.jl simplifies it to the plain integer \cd{1}.
+\end{notebox}
+
+
+% =============================================================
+\needspace{8\baselineskip}
+\section{Evaluation Table --- Exact $u$ Values}
+% =============================================================
+
+\begin{minted}{text}
+  Evaluation Table  -  P(u) = U * (M * G)
+  ----------------------------------------------------------------
+
+  +=============================================================+
+  | u       x(u)               y(u)               z(u)        |
+  |=============================================================|
+  | 0       0  (0.0000)        0  (0.0000)   1  (1.0000)      |
+  | 1//4    269//256  (1.0508) 121//64 (1.8906) 1  (1.0000)   |
+  | 1//2    45//16  (2.8125)   9//4  (2.2500)   1  (1.0000)   |
+  | 3//4    1053//256 (4.1133) 201//64 (3.1406) 1  (1.0000)   |
+  | 1       5  (5.0000)        4  (4.0000)       1  (1.0000)  |
+  +=============================================================+
+\end{minted}
+
+\needspace{5\baselineskip}
+\subsection{Exact $u$ values}
+
+Script~04 showed \cd{0.2500}, \cd{0.5000}, \cd{0.7500}
+in the $u$ column.
+Script~05 shows \cd{1//4}, \cd{1//2}, \cd{3//4}.
+
+This is because \cd{u\_values} is now a
+\cd{Vector\{Rational\{Int\}\}}, not a \cd{Vector\{Float64\}}.
+The values $\tfrac{1}{4}$, $\tfrac{1}{2}$, $\tfrac{3}{4}$
+are stored as exact fractions, and \cd{fmt\_rat} displays them
+as \cd{1//4}, \cd{1//2}, \cd{3//4}.
+
+\needspace{5\baselineskip}
+\subsection{Exact result values}
+
+The result values (\cd{269//256}, \cd{45//16}, etc.) are
+the same fractions as in script~02.
+The key difference from script~04 is \emph{how} they are
+computed:
+
+\begin{center}
+\begin{tabular}{lp{5cm}p{5cm}}
+\toprule
+Script & How exact fractions are produced \\
+\midrule
+Script~04 &
+  Compute with \cd{Float64}, then call \cd{rationalize()} to
+  convert back to the nearest fraction.
+  The fraction is recovered, not computed. \\[6pt]
+Script~05 &
+  Compute with \cd{Rational\{Int\}} throughout.
+  The fraction \cd{269//256} is the direct result of
+  integer arithmetic --- never a float. \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Both scripts display the same fractions.
+Script~05 arrives at them by a more rigorous route.
+
+\begin{examplebox}
+\textbf{Verify $x\!\left(\tfrac{1}{4}\right) = \dfrac{269}{256}$
+using \cd{Rational\{Int\}} arithmetic:}
+
+The $U$ vector at $u = \tfrac{1}{4}$ is:
+\[
+  U = \left[\left(\tfrac{1}{4}\right)^4,\;
+            \left(\tfrac{1}{4}\right)^3,\;
+            \left(\tfrac{1}{4}\right)^2,\;
+            \tfrac{1}{4},\; 1\right]
+  = \left[\tfrac{1}{256},\; \tfrac{1}{64},\;
+          \tfrac{1}{16},\; \tfrac{1}{4},\; 1\right]
+\]
+
+The $x$ column of $M \cdot G$ is $[13, -32, 24, 0, 0]$.
+
+Dot product (all as exact fractions):
+\[
+  \tfrac{1}{256}(13) + \tfrac{1}{64}(-32) + \tfrac{1}{16}(24)
+  + \tfrac{1}{4}(0) + 1(0)
+\]
+\[
+  = \tfrac{13}{256} - \tfrac{128}{256} + \tfrac{384}{256}
+  = \tfrac{13 - 128 + 384}{256}
+  = \tfrac{269}{256}
+\]
+
+No floating-point involved at any step. \checkmark
+\end{examplebox}
+
+\needspace{5\baselineskip}
+\subsection{Decimal column}
+
+The decimal column (\cd{1.0508}, \cd{2.8125}, etc.)
+is produced by converting the exact \cd{Rational\{Int\}}
+result to \cd{Float64} at the very last moment:
+\cd{Float64(269//256) = 1.05078125}, displayed as \cd{1.0508}
+with 4 decimal places.
+The decimal is a presentation convenience, not the actual
+stored value.
+
+
+% =============================================================
+\needspace{8\baselineskip}
+\section{The Convergence of All Five Scripts}
+% =============================================================
+
+\textit{Five scripts. Three methods. Two arithmetic systems.
+One curve.}
+
+\begin{center}
+\begin{tabular}{llll}
+\toprule
+Script & Method & Arithmetic & Polynomial display \\
+\midrule
+01 & Bernstein expansion & \cd{Float64} & Hand-formatted \\
+02 & Bernstein expansion & \cd{Rational\{Int\}} & Symbolics.jl \\
+03 & Matrix (pedagogical) & \cd{Float64} & Hand-formatted \\
+04 & Matrix (straight) & \cd{Float64} & Hand-formatted \\
+05 & Matrix (straight) & \cd{Rational\{Int\}} & Symbolics.jl \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Every script produces the same five curve points:
+$(0,0,1)$, $(1.051, 1.891, 1)$, $(2.813, 2.250, 1)$,
+$(4.113, 3.141, 1)$, $(5, 4, 1)$.
+
+The method (Bernstein vs matrix), the arithmetic
+(\cd{Float64} vs \cd{Rational\{Int\}}), and the display
+format (hand-formatted vs Symbolics.jl) are independent
+choices that can be mixed freely.
+Script~05 completes the matrix side of the
+\cd{Rational\{Int\}} + Symbolics.jl combination,
+mirroring what script~02 did for the Bernstein side.
+
+\vspace{2em}\hrule\vspace{0.5em}
+{\small\textcolor{gray}{%
+Output explanation for \texttt{05-bezier-matrix-sympy-text.jl}, Case~2
+\textbar{} Directed and curated by E.R.\ Nurwijayadi
+\textbar{} Code and explanations AI-generated}}
+
+\end{document}

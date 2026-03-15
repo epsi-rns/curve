@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Vue 3 Native Style + Bulma</title>
+    <!-- 1. Link to your local Bulma CSS -->
+    <link rel="stylesheet" href="bulma.min.css">
+</head>
+<body>
+    <section class="section">
+        <div class="container">
+            <div class="box">
+                <!-- 2. Vue will control this div -->
+                <div id="app">
+                    <h1 class="title is-4">Vue 3 Counter (Composition API)</h1>
+                    <p class="subtitle">Button clicked: <strong>{{ count }}</strong> times</p>
+                    <button class="button is-primary" @click="increment">
+                        Click me
+                    </button>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- 3. Link to your local Vue 3 library -->
+    <script src="vue.global.prod.js"></script>
+
+    <!-- 4. This section looks different - it's Vue 3 native style -->
+    <script type="module">
+        // Import ref from Vue (this is the Composition API way)
+        const { ref } = Vue
+        
+        // Create the app with a setup function (no more data/methods objects)
+        const app = Vue.createApp({
+            setup() {
+                // Create reactive variable using ref()
+                const count = ref(0)
+                
+                // Define function (just a regular function)
+                function increment() {
+                    count.value++  // Notice: .value is needed in JavaScript
+                }
+                
+                // Return everything the template needs
+                return {
+                    count,
+                    increment
+                }
+            }
+        })
+
+        app.mount('#app')
+    </script>
+</body>
+</html>

@@ -1,0 +1,1043 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Quadratic Bezier — Interactive</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Outfit:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:       #f4f6fb;
+  --panel:    #ffffff;
+  --border:   #dde2ee;
+  --border2:  #c8d0e0;
+  --accent:   #2563eb;
+  --accent2:  #e11d48;
+  --accent3:  #16a34a;
+  --orange:   #ea580c;
+  --curve:    #2563eb;
+  --polygon:  #e11d48;
+  --lv1:      #ea580c;
+  --lv2:      #16a34a;
+  --text:     #1e2433;
+  --muted:    #7b8499;
+  --label:    #4b5470;
+  --shadow:   0 1px 4px rgba(0,0,0,0.08),
+              0 4px 16px rgba(0,0,0,0.05);
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Outfit', sans-serif;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 28px 16px 48px;
+}
+
+/* ── Header ── */
+header {
+  width: 100%;
+  max-width: 960px;
+  margin-bottom: 22px;
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+}
+header h1 {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--accent);
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+header span {
+  font-size: 0.8rem;
+  color: var(--muted);
+  font-family: 'JetBrains Mono', monospace;
+}
+
+/* ── Layout ── */
+.workspace {
+  width: 100%;
+  max-width: 960px;
+  display: grid;
+  grid-template-columns: 1fr 272px;
+  gap: 16px;
+  align-items: start;
+}
+
+/* ── Canvas card ── */
+.canvas-card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: var(--shadow);
+}
+canvas {
+  display: block;
+  width: 100%;
+  cursor: crosshair;
+}
+canvas.dragging { cursor: grabbing; }
+
+/* ── Sidebar ── */
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+  box-shadow: var(--shadow);
+}
+.card-title {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 12px;
+}
+
+/* ── Toggles ── */
+.toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+.toggle-row:last-of-type { margin-bottom: 0; }
+.toggle-label {
+  font-size: 0.875rem;
+  color: var(--label);
+}
+
+.toggle {
+  position: relative;
+  width: 38px; height: 20px;
+  flex-shrink: 0;
+}
+.toggle input { opacity: 0; width: 0; height: 0; }
+.toggle-track {
+  position: absolute;
+  inset: 0;
+  background: var(--border2);
+  border-radius: 20px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.toggle-thumb {
+  position: absolute;
+  top: 3px; left: 3px;
+  width: 14px; height: 14px;
+  background: #fff;
+  border-radius: 50%;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.25);
+  transition: transform 0.2s;
+  pointer-events: none;
+}
+.toggle input:checked ~ .toggle-track {
+  background: var(--accent);
+}
+.toggle input:checked ~ .toggle-track .toggle-thumb {
+  transform: translateX(18px);
+}
+
+/* ── u slider ── */
+.u-block { margin-top: 12px; }
+.u-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+.u-header label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.8rem;
+  color: var(--label);
+}
+.u-val {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--accent);
+  background: #eff4ff;
+  padding: 1px 8px;
+  border-radius: 4px;
+}
+input[type=range] {
+  width: 100%;
+  -webkit-appearance: none;
+  height: 4px;
+  background: var(--border2);
+  border-radius: 4px;
+  outline: none;
+  cursor: pointer;
+}
+input[type=range]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 15px; height: 15px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 3px #eff4ff;
+  cursor: grab;
+}
+
+/* ── Editable points ── */
+.pt-rows { display: flex; flex-direction: column; gap: 10px; }
+.pt-row {
+  display: grid;
+  grid-template-columns: 10px 28px 1fr 1fr;
+  align-items: center;
+  gap: 8px;
+}
+.pt-dot {
+  width: 10px; height: 10px;
+  border-radius: 50%;
+}
+.pt-name {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--label);
+}
+.pt-input {
+  width: 100%;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.78rem;
+  padding: 4px 6px;
+  border: 1px solid var(--border2);
+  border-radius: 5px;
+  background: var(--bg);
+  color: var(--text);
+  outline: none;
+  transition: border-color 0.15s;
+  text-align: center;
+}
+.pt-input:focus { border-color: var(--accent); }
+.pt-hint {
+  font-size: 0.72rem;
+  color: var(--muted);
+  margin-top: 8px;
+  line-height: 1.6;
+}
+
+/* ── Equation card ── */
+.eq-box {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.74rem;
+  line-height: 1.9;
+  color: var(--label);
+  padding: 10px 12px;
+  background: #f8faff;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+}
+.eq-head {
+  font-size: 0.64rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 2px;
+}
+.eq-head + .eq-head { margin-top: 8px; }
+.eq-val { color: var(--accent); font-weight: 600; }
+.eq-result { color: var(--accent3); font-weight: 600; }
+
+/* ── Legend ── */
+.legend { display: flex; flex-direction: column; gap: 7px; }
+.legend-item {
+  display: flex; align-items: center;
+  gap: 9px; font-size: 0.82rem; color: var(--label);
+}
+.leg-line {
+  width: 22px; height: 3px; border-radius: 2px; flex-shrink: 0;
+}
+.leg-dash {
+  width: 22px; height: 0;
+  border-top: 2px dashed; flex-shrink: 0;
+}
+.leg-dot {
+  width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0;
+}
+.leg-diamond {
+  width: 9px; height: 9px;
+  transform: rotate(45deg); flex-shrink: 0;
+}
+
+/* ── Reset button ── */
+.btn-reset {
+  width: 100%;
+  padding: 9px;
+  background: transparent;
+  border: 1px solid var(--border2);
+  border-radius: 8px;
+  color: var(--muted);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.74rem;
+  letter-spacing: 0.07em;
+  cursor: pointer;
+  transition: border-color 0.2s, color 0.2s, background 0.2s;
+}
+.btn-reset:hover {
+  border-color: var(--accent2);
+  color: var(--accent2);
+  background: #fff5f7;
+}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Bezier · Quadratic</h1>
+  <span>// drag points or edit coordinates</span>
+</header>
+
+<div class="workspace">
+
+  <!-- Canvas -->
+  <div class="canvas-card">
+    <canvas id="cvs" width="640" height="520"></canvas>
+  </div>
+
+  <!-- Sidebar -->
+  <div class="sidebar">
+
+    <!-- Display options -->
+    <div class="card">
+      <div class="card-title">Display</div>
+
+      <div class="toggle-row">
+        <span class="toggle-label">Control Polygon</span>
+        <label class="toggle">
+          <input type="checkbox" id="togPolygon" checked>
+          <div class="toggle-track">
+            <div class="toggle-thumb"></div>
+          </div>
+        </label>
+      </div>
+
+      <div class="toggle-row">
+        <span class="toggle-label">Equation</span>
+        <label class="toggle">
+          <input type="checkbox" id="togEquation" checked>
+          <div class="toggle-track">
+            <div class="toggle-thumb"></div>
+          </div>
+        </label>
+      </div>
+
+      <div class="toggle-row">
+        <span class="toggle-label">De Casteljau</span>
+        <label class="toggle">
+          <input type="checkbox" id="togDC" checked>
+          <div class="toggle-track">
+            <div class="toggle-thumb"></div>
+          </div>
+        </label>
+      </div>
+
+      <div class="u-block">
+        <div class="u-header">
+          <label>Parameter u</label>
+          <span class="u-val" id="uVal">0.50</span>
+        </div>
+        <input type="range" id="uSlider"
+          min="0" max="1" step="0.01" value="0.5">
+      </div>
+    </div>
+
+    <!-- Editable control points -->
+    <div class="card">
+      <div class="card-title">Control Points</div>
+      <div class="pt-rows" id="ptRows"></div>
+      <p class="pt-hint">
+        Drag on canvas, or type x/y values directly.<br>
+        Coordinate space: x ∈ [0,10], y ∈ [0,8]
+      </p>
+    </div>
+
+    <!-- Equation (live) -->
+    <div class="card" id="eqCard">
+      <div class="card-title">Equation</div>
+      <div class="eq-box" id="eqBox"></div>
+    </div>
+
+    <!-- Legend -->
+    <div class="card">
+      <div class="card-title">Legend</div>
+      <div class="legend">
+        <div class="legend-item">
+          <div class="leg-line"
+            style="background:#2563eb"></div>
+          Bezier Curve
+        </div>
+        <div class="legend-item">
+          <div class="leg-dash"
+            style="border-color:#e11d48"></div>
+          Control Polygon
+        </div>
+        <div class="legend-item">
+          <div class="leg-line"
+            style="background:#ea580c"></div>
+          DC Level 1 — Q0·Q1
+        </div>
+        <div class="legend-item">
+          <div class="leg-dot"
+            style="background:#ea580c"></div>
+          Q0, Q1 (level 1 pts)
+        </div>
+        <div class="legend-item">
+          <div class="leg-diamond"
+            style="background:#16a34a"></div>
+          R0 — curve point at u
+        </div>
+      </div>
+    </div>
+
+    <button class="btn-reset" id="btnReset">
+      ↺ &nbsp; Reset Points
+    </button>
+
+  </div><!-- sidebar -->
+</div><!-- workspace -->
+
+<script>
+// ── Constants ───────────────────────────────────────────────
+
+const W   = 640;
+const H   = 520;
+const PAD = 60;
+
+// Math coordinate space: x in [0,10], y in [0,8]
+const MX_MAX = 10;
+const MY_MAX = 8;
+
+// Default math-space control points
+const DEFAULTS_MATH = [
+  [1, 1],   // P0
+  [5, 7],   // P1
+  [9, 1],   // P2
+];
+
+const PT_NAMES  = ['P0', 'P1', 'P2'];
+const PT_COLORS = ['#e11d48', '#ea580c', '#2563eb'];
+const HIT_R     = 14;
+
+const COLORS = {
+  gridMinor: '#edf0f7',
+  gridMajor: '#dde2ee',
+  axis:      '#c8d0e0',
+  axisTxt:   '#9aa3b8',
+  curve:     '#2563eb',
+  polygon:   '#e11d48',
+  lv1Seg:    '#ea580c',
+  lv1Pt:     '#ea580c',
+  lv2Pt:     '#16a34a',
+  label:     '#4b5470',
+  muted:     '#9aa3b8',
+  eqBg:      'rgba(248,250,255,0.92)',
+  eqBorder:  '#dde2ee',
+};
+
+// ── State ───────────────────────────────────────────────────
+
+// Working copy in math-space
+let mathPts   = DEFAULTS_MATH.map(p => [...p]);
+let u         = 0.5;
+let showPoly  = true;
+let showEq    = true;
+let showDC    = true;
+let dragIdx   = -1;
+let dragOffX  = 0;
+let dragOffY  = 0;
+
+// ── Canvas setup ────────────────────────────────────────────
+
+const cvs = document.getElementById('cvs');
+const ctx = cvs.getContext('2d');
+
+const DPR = window.devicePixelRatio || 1;
+cvs.width        = W * DPR;
+cvs.height       = H * DPR;
+cvs.style.width  = W + 'px';
+cvs.style.height = H + 'px';
+ctx.scale(DPR, DPR);
+
+// ── Coordinate transforms ────────────────────────────────────
+
+function mathToCanvas(mx, my) {
+  const cx = PAD + (mx / MX_MAX) * (W - 2 * PAD);
+  const cy = H - PAD - (my / MY_MAX) * (H - 2 * PAD);
+  return [cx, cy];
+}
+
+function canvasToMath(cx, cy) {
+  const mx = (cx - PAD) / (W - 2 * PAD) * MX_MAX;
+  const my = (1 - (cy - PAD) / (H - 2 * PAD)) * MY_MAX;
+  return [mx, my];
+}
+
+// Canvas-space pts derived from math-space
+function canvasPts() {
+  return mathPts.map(p => mathToCanvas(p[0], p[1]));
+}
+
+// ── Math helpers ────────────────────────────────────────────
+
+function lerp(a, b, t) {
+  return [
+    (1 - t) * a[0] + t * b[0],
+    (1 - t) * a[1] + t * b[1],
+  ];
+}
+
+function bezierPoint(p0, p1, p2, t) {
+  return lerp(lerp(p0, p1, t), lerp(p1, p2, t), t);
+}
+
+function dcSteps(p0, p1, p2, t) {
+  const q0 = lerp(p0, p1, t);
+  const q1 = lerp(p1, p2, t);
+  const r0 = lerp(q0, q1, t);
+  return { q0, q1, r0 };
+}
+
+// ── Equation derivation ─────────────────────────────────────
+
+function fmt(v) {
+  // Show up to 3 decimal places, strip trailing zeros
+  return parseFloat(v.toFixed(3)).toString();
+}
+
+function buildPoly(a, b, c) {
+  // Build "au² + bu + c" string, skipping near-zero terms
+  let s     = '';
+  let first = true;
+
+  if (Math.abs(a) > 1e-9) {
+    s    += fmt(a) + 'u\u00B2';
+    first = false;
+  }
+  if (Math.abs(b) > 1e-9) {
+    const sign = b < 0 ? ' - ' : (first ? '' : ' + ');
+    s    += sign + fmt(Math.abs(b)) + 'u';
+    first = false;
+  }
+  if (Math.abs(c) > 1e-9) {
+    const sign = c < 0 ? ' - ' : (first ? '' : ' + ');
+    s += sign + fmt(Math.abs(c));
+  }
+  return s || '0';
+}
+
+function deriveEq() {
+  const [x0, y0] = mathPts[0];
+  const [x1, y1] = mathPts[1];
+  const [x2, y2] = mathPts[2];
+
+  // Monomial coefficients from Bernstein expansion
+  // x(u) = (x0-2x1+x2)u² + (-2x0+2x1)u + x0
+  const ax = x0 - 2*x1 + x2;
+  const bx = -2*x0 + 2*x1;
+  const cx = x0;
+
+  const ay = y0 - 2*y1 + y2;
+  const by = -2*y0 + 2*y1;
+  const cy = y0;
+
+  return {
+    xEq: buildPoly(ax, bx, cx),
+    yEq: buildPoly(ay, by, cy),
+    ax, bx, cx, ay, by, cy
+  };
+}
+
+function evalPt(eq, t) {
+  return [
+    eq.ax*t*t + eq.bx*t + eq.cx,
+    eq.ay*t*t + eq.by*t + eq.cy,
+  ];
+}
+
+// ── Draw: background ────────────────────────────────────────
+
+function drawGrid() {
+  // Minor grid (every 1 unit)
+  ctx.strokeStyle = COLORS.gridMinor;
+  ctx.lineWidth   = 1;
+  for (let i = 0; i <= MX_MAX; i++) {
+    const [x] = mathToCanvas(i, 0);
+    ctx.beginPath();
+    ctx.moveTo(x, PAD);
+    ctx.lineTo(x, H - PAD);
+    ctx.stroke();
+  }
+  for (let j = 0; j <= MY_MAX; j++) {
+    const [, y] = mathToCanvas(0, j);
+    ctx.beginPath();
+    ctx.moveTo(PAD, y);
+    ctx.lineTo(W - PAD, y);
+    ctx.stroke();
+  }
+  // Major grid (every 2 units)
+  ctx.strokeStyle = COLORS.gridMajor;
+  ctx.lineWidth   = 1.5;
+  for (let i = 0; i <= MX_MAX; i += 2) {
+    const [x] = mathToCanvas(i, 0);
+    ctx.beginPath();
+    ctx.moveTo(x, PAD);
+    ctx.lineTo(x, H - PAD);
+    ctx.stroke();
+  }
+  for (let j = 0; j <= MY_MAX; j += 2) {
+    const [, y] = mathToCanvas(0, j);
+    ctx.beginPath();
+    ctx.moveTo(PAD, y);
+    ctx.lineTo(W - PAD, y);
+    ctx.stroke();
+  }
+}
+
+function drawAxes() {
+  ctx.strokeStyle = COLORS.axis;
+  ctx.lineWidth   = 1.5;
+  ctx.setLineDash([]);
+
+  const [xL] = mathToCanvas(0, 0);
+  const [xR] = mathToCanvas(MX_MAX, 0);
+  const [,yB] = mathToCanvas(0, 0);
+  const [,yT] = mathToCanvas(0, MY_MAX);
+
+  // x-axis
+  ctx.beginPath();
+  ctx.moveTo(xL, yB);
+  ctx.lineTo(xR, yB);
+  ctx.stroke();
+
+  // y-axis
+  ctx.beginPath();
+  ctx.moveTo(xL, yT);
+  ctx.lineTo(xL, yB);
+  ctx.stroke();
+
+  // Tick labels
+  ctx.fillStyle  = COLORS.axisTxt;
+  ctx.font       = '10px JetBrains Mono, monospace';
+  ctx.textAlign  = 'center';
+  for (let i = 0; i <= MX_MAX; i += 2) {
+    const [x] = mathToCanvas(i, 0);
+    ctx.fillText(i, x, yB + 16);
+  }
+  ctx.textAlign = 'right';
+  for (let j = 0; j <= MY_MAX; j += 2) {
+    const [, y] = mathToCanvas(0, j);
+    ctx.fillText(j, xL - 7, y + 4);
+  }
+}
+
+// ── Draw: curve ─────────────────────────────────────────────
+
+function drawCurve() {
+  const cp = canvasPts();
+  ctx.beginPath();
+  ctx.strokeStyle = COLORS.curve;
+  ctx.lineWidth   = 2.5;
+  ctx.setLineDash([]);
+
+  const N = 200;
+  for (let i = 0; i <= N; i++) {
+    const t  = i / N;
+    const pt = bezierPoint(cp[0], cp[1], cp[2], t);
+    if (i === 0) ctx.moveTo(pt[0], pt[1]);
+    else         ctx.lineTo(pt[0], pt[1]);
+  }
+  ctx.stroke();
+}
+
+// ── Draw: control polygon ────────────────────────────────────
+
+function drawControlPolygon() {
+  if (!showPoly) return;
+  const cp = canvasPts();
+  ctx.strokeStyle = COLORS.polygon;
+  ctx.lineWidth   = 1.5;
+  ctx.setLineDash([6, 4]);
+  ctx.beginPath();
+  cp.forEach((p, i) => {
+    if (i === 0) ctx.moveTo(p[0], p[1]);
+    else         ctx.lineTo(p[0], p[1]);
+  });
+  ctx.stroke();
+  ctx.setLineDash([]);
+}
+
+// ── Draw: control point handles ──────────────────────────────
+
+function drawControlPoints() {
+  const cp = canvasPts();
+  cp.forEach((p, i) => {
+    // Halo
+    ctx.beginPath();
+    ctx.arc(p[0], p[1], 9, 0, Math.PI * 2);
+    ctx.strokeStyle = PT_COLORS[i];
+    ctx.lineWidth   = 2;
+    ctx.stroke();
+
+    // Fill
+    ctx.beginPath();
+    ctx.arc(p[0], p[1], 5, 0, Math.PI * 2);
+    ctx.fillStyle = PT_COLORS[i];
+    ctx.fill();
+
+    // Name
+    const offX = i === 0 ? -30 : 12;
+    const offY = i === 1 ? -14 : 14;
+    ctx.fillStyle  = PT_COLORS[i];
+    ctx.font       = 'bold 11px JetBrains Mono, monospace';
+    ctx.textAlign  = 'left';
+    ctx.fillText(PT_NAMES[i], p[0] + offX, p[1] + offY);
+
+    // Coords
+    const [mx, my] = mathPts[i];
+    ctx.fillStyle = COLORS.label;
+    ctx.font      = '9px JetBrains Mono, monospace';
+    ctx.fillText(
+      `(${mx.toFixed(2)},${my.toFixed(2)})`,
+      p[0] + offX, p[1] + offY + 12
+    );
+  });
+}
+
+// ── Draw: De Casteljau ───────────────────────────────────────
+
+function drawDC() {
+  if (!showDC) return;
+  const cp              = canvasPts();
+  const { q0, q1, r0 } = dcSteps(cp[0], cp[1], cp[2], u);
+
+  // Q0–Q1 segment
+  ctx.strokeStyle = COLORS.lv1Seg;
+  ctx.lineWidth   = 2;
+  ctx.setLineDash([]);
+  ctx.beginPath();
+  ctx.moveTo(q0[0], q0[1]);
+  ctx.lineTo(q1[0], q1[1]);
+  ctx.stroke();
+
+  // Q dots
+  [q0, q1].forEach((q, i) => {
+    ctx.beginPath();
+    ctx.arc(q[0], q[1], 5, 0, Math.PI * 2);
+    ctx.fillStyle = COLORS.lv1Pt;
+    ctx.fill();
+
+    ctx.fillStyle  = COLORS.lv1Pt;
+    ctx.font       = '9px JetBrains Mono, monospace';
+    ctx.textAlign  = i === 0 ? 'right' : 'left';
+    const lx       = i === 0 ? q[0] - 8 : q[0] + 8;
+    ctx.fillText(`Q${i}`, lx, q[1] + 4);
+  });
+
+  // R0 diamond
+  ctx.save();
+  ctx.translate(r0[0], r0[1]);
+  ctx.rotate(Math.PI / 4);
+  ctx.fillStyle = COLORS.lv2Pt;
+  ctx.fillRect(-6, -6, 12, 12);
+  ctx.restore();
+
+  // R0 label
+  const [rx, ry] = canvasToMath(r0[0], r0[1]);
+  ctx.fillStyle  = COLORS.lv2Pt;
+  ctx.font       = 'bold 9px JetBrains Mono, monospace';
+  ctx.textAlign  = 'left';
+  ctx.fillText('R0', r0[0] + 10, r0[1] - 4);
+  ctx.font       = '9px JetBrains Mono, monospace';
+  ctx.fillStyle  = COLORS.label;
+  ctx.fillText(
+    `(${rx.toFixed(2)},${ry.toFixed(2)})`,
+    r0[0] + 10, r0[1] + 8
+  );
+
+  // u badge
+  ctx.fillStyle  = COLORS.lv2Pt;
+  ctx.font       = 'bold 10px JetBrains Mono, monospace';
+  ctx.textAlign  = 'center';
+  ctx.fillText(`u = ${u.toFixed(2)}`, r0[0], r0[1] - 16);
+}
+
+// ── Draw: equation overlay ───────────────────────────────────
+
+function drawEquation() {
+  if (!showEq) return;
+  const eq    = deriveEq();
+  const [ex, ey] = evalPt(eq, u);
+
+  const lines = [
+    { head: 'Bernstein form' },
+    { text: 'P(u)=(1-u)\u00B2P0+2u(1-u)P1+u\u00B2P2' },
+    { head: 'Monomial form' },
+    { text: `x(u) = ${eq.xEq}` },
+    { text: `y(u) = ${eq.yEq}` },
+    { head: `At u = ${u.toFixed(2)}` },
+    { text: `x = ${ex.toFixed(4)},  y = ${ey.toFixed(4)}` },
+  ];
+
+  const bx  = PAD + 6;
+  const by  = PAD + 10;
+  const lh  = 16;
+  const bw  = 270;
+  const bht = lines.length * lh + 14;
+
+  ctx.fillStyle   = COLORS.eqBg;
+  ctx.strokeStyle = COLORS.eqBorder;
+  ctx.lineWidth   = 1;
+  ctx.setLineDash([]);
+  ctx.beginPath();
+  ctx.roundRect(bx - 6, by - 12, bw, bht, 7);
+  ctx.fill();
+  ctx.stroke();
+
+  let y = by;
+  lines.forEach(ln => {
+    if (ln.head) {
+      ctx.fillStyle = COLORS.muted;
+      ctx.font = '8px JetBrains Mono, monospace';
+      ctx.textAlign = 'left';
+      ctx.fillText(ln.head.toUpperCase(), bx, y);
+    } else {
+      ctx.fillStyle = COLORS.label;
+      ctx.font = '9.5px JetBrains Mono, monospace';
+      ctx.textAlign = 'left';
+      ctx.fillText(ln.text, bx, y);
+    }
+    y += lh;
+  });
+}
+
+// ── Sidebar: editable point inputs ──────────────────────────
+
+function buildPtRows() {
+  const el = document.getElementById('ptRows');
+  el.innerHTML = '';
+
+  mathPts.forEach((p, i) => {
+    const row = document.createElement('div');
+    row.className = 'pt-row';
+    row.innerHTML = `
+      <div class="pt-dot"
+        style="background:${PT_COLORS[i]}"></div>
+      <span class="pt-name">${PT_NAMES[i]}</span>
+      <input class="pt-input" type="number"
+        id="inp_x_${i}" value="${p[0].toFixed(3)}"
+        step="0.1" min="0" max="10"
+        placeholder="x">
+      <input class="pt-input" type="number"
+        id="inp_y_${i}" value="${p[1].toFixed(3)}"
+        step="0.1" min="0" max="8"
+        placeholder="y">
+    `;
+    el.appendChild(row);
+
+    // x input listener
+    row.querySelector(`#inp_x_${i}`)
+      .addEventListener('change', e => {
+        const v = parseFloat(e.target.value);
+        if (!isNaN(v)) {
+          mathPts[i][0] = Math.max(0, Math.min(MX_MAX, v));
+          render();
+        }
+      });
+
+    // y input listener
+    row.querySelector(`#inp_y_${i}`)
+      .addEventListener('change', e => {
+        const v = parseFloat(e.target.value);
+        if (!isNaN(v)) {
+          mathPts[i][1] = Math.max(0, Math.min(MY_MAX, v));
+          render();
+        }
+      });
+  });
+}
+
+function syncPtInputs() {
+  mathPts.forEach((p, i) => {
+    const ix = document.getElementById(`inp_x_${i}`);
+    const iy = document.getElementById(`inp_y_${i}`);
+    // Only update if input not focused (avoid clobbering)
+    if (ix && document.activeElement !== ix)
+      ix.value = p[0].toFixed(3);
+    if (iy && document.activeElement !== iy)
+      iy.value = p[1].toFixed(3);
+  });
+}
+
+function updateEqCard() {
+  const eq      = deriveEq();
+  const [ex, ey] = evalPt(eq, u);
+  document.getElementById('eqBox').innerHTML = `
+    <div class="eq-head">Bernstein — degree 2</div>
+    P(u) = (1-u)\u00B2P0 + 2u(1-u)P1 + u\u00B2P2
+    <br><br>
+    <div class="eq-head">Monomial form</div>
+    x(u) = <span class="eq-val">${eq.xEq}</span><br>
+    y(u) = <span class="eq-val">${eq.yEq}</span>
+    <br><br>
+    <div class="eq-head">At u = ${u.toFixed(2)}</div>
+    x = <span class="eq-result">${ex.toFixed(4)}</span><br>
+    y = <span class="eq-result">${ey.toFixed(4)}</span>
+  `;
+  document.getElementById('eqCard')
+    .style.display = showEq ? '' : 'none';
+}
+
+// ── Main render ─────────────────────────────────────────────
+
+function render() {
+  ctx.clearRect(0, 0, W, H);
+  drawGrid();
+  drawAxes();
+  drawCurve();
+  drawControlPolygon();
+  drawDC();
+  drawControlPoints();
+  drawEquation();
+  syncPtInputs();
+  updateEqCard();
+}
+
+// ── Drag interaction ────────────────────────────────────────
+
+function getXY(e) {
+  const rect   = cvs.getBoundingClientRect();
+  const scaleX = W / rect.width;
+  const scaleY = H / rect.height;
+  const src    = e.touches ? e.touches[0] : e;
+  return [
+    (src.clientX - rect.left) * scaleX,
+    (src.clientY - rect.top)  * scaleY,
+  ];
+}
+
+function findHit(cx, cy) {
+  const cp = canvasPts();
+  for (let i = cp.length - 1; i >= 0; i--) {
+    const dx = cp[i][0] - cx;
+    const dy = cp[i][1] - cy;
+    if (Math.hypot(dx, dy) < HIT_R) return i;
+  }
+  return -1;
+}
+
+cvs.addEventListener('mousedown', e => {
+  const [cx, cy] = getXY(e);
+  dragIdx = findHit(cx, cy);
+  if (dragIdx >= 0) {
+    const cp = canvasPts();
+    dragOffX = cp[dragIdx][0] - cx;
+    dragOffY = cp[dragIdx][1] - cy;
+    cvs.classList.add('dragging');
+  }
+});
+
+cvs.addEventListener('mousemove', e => {
+  if (dragIdx < 0) return;
+  const [cx, cy] = getXY(e);
+  const nx = cx + dragOffX;
+  const ny = cy + dragOffY;
+  const mx = Math.max(0,
+    Math.min(MX_MAX, canvasToMath(nx, ny)[0]));
+  const my = Math.max(0,
+    Math.min(MY_MAX, canvasToMath(nx, ny)[1]));
+  mathPts[dragIdx] = [mx, my];
+  render();
+});
+
+cvs.addEventListener('mouseup', () => {
+  dragIdx = -1;
+  cvs.classList.remove('dragging');
+});
+cvs.addEventListener('mouseleave', () => {
+  dragIdx = -1;
+  cvs.classList.remove('dragging');
+});
+
+cvs.addEventListener('touchstart', e => {
+  e.preventDefault();
+  const [cx, cy] = getXY(e);
+  dragIdx = findHit(cx, cy);
+  if (dragIdx >= 0) {
+    const cp = canvasPts();
+    dragOffX = cp[dragIdx][0] - cx;
+    dragOffY = cp[dragIdx][1] - cy;
+  }
+}, { passive: false });
+
+cvs.addEventListener('touchmove', e => {
+  e.preventDefault();
+  if (dragIdx < 0) return;
+  const [cx, cy] = getXY(e);
+  const nx = cx + dragOffX;
+  const ny = cy + dragOffY;
+  const mx = Math.max(0,
+    Math.min(MX_MAX, canvasToMath(nx, ny)[0]));
+  const my = Math.max(0,
+    Math.min(MY_MAX, canvasToMath(nx, ny)[1]));
+  mathPts[dragIdx] = [mx, my];
+  render();
+}, { passive: false });
+
+cvs.addEventListener('touchend', () => { dragIdx = -1; });
+
+// ── Controls ────────────────────────────────────────────────
+
+document.getElementById('togPolygon')
+  .addEventListener('change', e => {
+    showPoly = e.target.checked; render();
+  });
+document.getElementById('togEquation')
+  .addEventListener('change', e => {
+    showEq = e.target.checked; render();
+  });
+document.getElementById('togDC')
+  .addEventListener('change', e => {
+    showDC = e.target.checked; render();
+  });
+
+document.getElementById('uSlider')
+  .addEventListener('input', e => {
+    u = parseFloat(e.target.value);
+    document.getElementById('uVal')
+      .textContent = u.toFixed(2);
+    render();
+  });
+
+document.getElementById('btnReset')
+  .addEventListener('click', () => {
+    mathPts = DEFAULTS_MATH.map(p => [...p]);
+    buildPtRows();
+    render();
+  });
+
+// ── Init ────────────────────────────────────────────────────
+
+buildPtRows();
+render();
+</script>
+</body>
+</html>

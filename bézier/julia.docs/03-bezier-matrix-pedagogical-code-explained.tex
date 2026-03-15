@@ -1,0 +1,1386 @@
+% ============================================================
+% 03-bezier-matrix-pedagogical-code-explained.tex
+% Compile with:  pdflatex -shell-escape 03-bezier-matrix-pedagogical-code-explained.tex
+% Run twice for table of contents.
+% ============================================================
+
+\documentclass[12pt, a4paper]{article}
+
+% ---- Encoding & fonts ----------------------------------------
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+
+% ---- Page geometry -------------------------------------------
+\usepackage[
+  top=2.5cm, bottom=2.5cm,
+  left=2.8cm, right=2.8cm
+]{geometry}
+
+% ---- Colours -------------------------------------------------
+\usepackage[dvipsnames]{xcolor}
+\definecolor{codebg}{RGB}{248,248,248}
+\definecolor{rulecolor}{RGB}{180,180,180}
+\definecolor{examplebg}{RGB}{240,248,255}
+\definecolor{examplerule}{RGB}{100,149,237}
+\definecolor{notebg}{RGB}{255,250,230}
+\definecolor{noterule}{RGB}{210,180,50}
+
+% ---- Minted --------------------------------------------------
+\usepackage{minted}
+\setminted[julia]{
+  bgcolor    = codebg,
+  frame      = leftline,
+  framerule  = 1.5pt,
+  rulecolor  = rulecolor,
+  linenos    = false,
+  fontsize   = \small,
+  breaklines = true,
+  tabsize    = 4,
+  style      = friendly,
+}
+\setminted[text]{
+  bgcolor    = codebg,
+  fontsize   = \small,
+  breaklines = true,
+}
+
+% ---- Math ----------------------------------------------------
+\usepackage{amsmath}
+\usepackage{amssymb}
+
+% ---- TikZ ----------------------------------------------------
+\usepackage{tikz}
+\usetikzlibrary{shapes.geometric, arrows.meta, positioning, backgrounds}
+
+% ---- Boxes ---------------------------------------------------
+\usepackage{mdframed}
+
+\newmdenv[
+  backgroundcolor  = examplebg,
+  linecolor        = examplerule, linewidth=1.5pt,
+  leftline=true, rightline=false, topline=false, bottomline=false,
+  innerleftmargin=10pt, innerrightmargin=8pt,
+  innertopmargin=6pt, innerbottommargin=6pt,
+  skipabove=6pt, skipbelow=4pt,
+]{examplebox}
+
+\newmdenv[
+  backgroundcolor  = notebg,
+  linecolor        = noterule, linewidth=1.5pt,
+  leftline=true, rightline=false, topline=false, bottomline=false,
+  innerleftmargin=10pt, innerrightmargin=8pt,
+  innertopmargin=6pt, innerbottommargin=6pt,
+  skipabove=6pt, skipbelow=4pt,
+]{notebox}
+
+% ---- Hyperlinks ----------------------------------------------
+\usepackage[colorlinks=true, linkcolor=black, urlcolor=MidnightBlue]{hyperref}
+
+% ---- Misc ----------------------------------------------------
+\usepackage{booktabs}
+\usepackage{needspace}
+\usepackage{parskip}
+\usepackage{titlesec}
+\usepackage{fancyhdr}
+\usepackage{datetime2}
+
+% ---- Section formatting --------------------------------------
+\titleformat{\section}
+  {\large\bfseries\color{MidnightBlue}}
+  {\thesection.}{0.6em}{}[\vspace{-4pt}\rule{\linewidth}{0.4pt}]
+\titleformat{\subsection}
+  {\normalsize\bfseries\color{BrickRed}}
+  {\thesubsection.}{0.5em}{}
+\titleformat{\subsubsection}
+  {\normalsize\bfseries}
+  {\thesubsubsection.}{0.5em}{}
+
+% ---- Header / footer -----------------------------------------
+\pagestyle{fancy}
+\fancyhf{}
+\rhead{\textcolor{gray}{\small 03-bezier-matrix-pedagogical-code-explained}}
+\lhead{\textcolor{gray}{\small B\'ezier Matrix Method --- Code Explanation}}
+\cfoot{\thepage}
+\renewcommand{\headrulewidth}{0.3pt}
+
+% ---- Helpers -------------------------------------------------
+\newcommand{\cd}[1]{\texttt{#1}}
+
+% ---- Title ---------------------------------------------------
+\title{%
+  \vspace{1cm}
+  {\LARGE\bfseries B\'ezier Curve --- Matrix Method}\\[0.4em]
+  {\large $P(u) = U \cdot M \cdot G$}\\[0.4em]
+  {\large Code Explanation for Julia Beginners}\\[0.4em]
+  {\normalsize\texttt{03-bezier-matrix-pedagogical.jl}}
+}
+\author{E.R.\ Nurwijayadi}
+\date{\DTMtoday}
+
+
+% =============================================================
+\begin{document}
+% =============================================================
+
+\maketitle
+\thispagestyle{empty}
+
+\begin{center}
+\textit{Directed and curated by E.R.\ Nurwijayadi.
+Code and explanations AI-generated.}
+\end{center}
+
+\begin{center}
+\begin{minipage}{0.85\textwidth}
+\small
+This document explains the Julia code in
+\cd{03-bezier-matrix-pedagogical.jl} for readers new to Julia.
+The script uses no external libraries --- only Julia's built-in
+matrix arithmetic.
+New concepts covered: matrix types, index arithmetic in
+\cd{derive\_M}, \cd{reshape}, batch matrix evaluation,
+keyword arguments, \cd{Union} types, \cd{nothing}, and
+a general-purpose table printer with two display styles.
+\end{minipage}
+\end{center}
+
+\vspace{1em}\hrule\vspace{1.5em}
+\tableofcontents
+\newpage
+
+
+% =============================================================
+\needspace{8\baselineskip}
+\section{Type Map: How the Pieces Fit Together}
+% =============================================================
+
+\textit{This script has no Poly type, no Symbolics.jl.
+Everything is plain matrix arithmetic.
+Two structs worth of logic are replaced by one struct and
+Julia's built-in \cd{*} operator on matrices.}
+
+\bigskip
+
+\tikzset{
+  structbox/.style={
+    rectangle, rounded corners=4pt,
+    draw=MidnightBlue, line width=1.5pt,
+    fill=examplebg,
+    text width=3.4cm, align=center,
+    font=\small\bfseries, inner sep=8pt
+  },
+  funcbox/.style={
+    rectangle, rounded corners=2pt,
+    draw=gray!60, line width=1pt,
+    fill=white,
+    text width=3.4cm, align=center,
+    font=\small, inner sep=7pt
+  },
+  entrybox/.style={
+    rectangle, rounded corners=4pt,
+    draw=BrickRed, line width=1.5pt,
+    fill=notebg,
+    text width=2.4cm, align=center,
+    font=\small\bfseries, inner sep=8pt
+  },
+  myarrow/.style={-Stealth, thick, draw=gray!70},
+  bluearrow/.style={-Stealth, thick, draw=MidnightBlue},
+  redarrow/.style={-Stealth, thick, draw=BrickRed!80},
+  arrowlabel/.style={font=\footnotesize\itshape, fill=white, inner sep=2pt}
+}
+
+\begin{center}
+\begin{tikzpicture}[node distance=1.4cm and 2.8cm]
+
+  % -- BezierMatrix struct -----------------------------------
+  \node[structbox] (bm) {%
+    \texttt{BezierMatrix}\\[3pt]
+    \footnotesize\normalfont
+    \texttt{G, M, MG::Matrix\{Float64\}}\\
+    \texttt{axes, n, degree, dim}
+  };
+
+  % -- derive_M (below left) --------------------------------
+  \node[funcbox, below left=1.6cm and 0.4cm of bm] (deriveM) {%
+    \texttt{derive\_M(deg)}\\[2pt]
+    \footnotesize\normalfont
+    \textit{builds basis matrix $M$}\\
+    \textit{from Bernstein formula}
+  };
+
+  % -- U_vec + evaluate_all (below right) -------------------
+  \node[funcbox, below right=1.6cm and 0.4cm of bm] (eval) {%
+    \texttt{U\_vec()}\\
+    \texttt{evaluate\_all()}\\[2pt]
+    \footnotesize\normalfont
+    \textit{build $U$, batch eval}\\
+    \textit{via matrix multiply}
+  };
+
+  % -- fmt helpers (below deriveM) --------------------------
+  \node[funcbox, below=1.3cm of deriveM] (fmt) {%
+    \textbf{Formatting helpers}\\[2pt]
+    \footnotesize\normalfont
+    \texttt{fmt}, \texttt{fmt\_frac}\\
+    \texttt{fmt\_poly}
+  };
+
+  % -- table printers (below eval) --------------------------
+  \node[funcbox, below=1.3cm of eval] (tbl) {%
+    \textbf{Table printers}\\[2pt]
+    \footnotesize\normalfont
+    \texttt{print\_table}\\
+    \texttt{print\_labeled\_matrix}
+  };
+
+  % -- print step functions (below fmt and tbl) -------------
+  \node[funcbox, below=1.3cm of fmt, xshift=2.2cm] (print) {%
+    \textbf{Print functions}\\[2pt]
+    \footnotesize\normalfont
+    \texttt{print\_step1} \ldots \texttt{print\_step5}\\
+    \texttt{print\_all}
+  };
+
+  % -- main -------------------------------------------------
+  \node[entrybox, right=2.2cm of bm] (main) {%
+    \texttt{main()}\\[2pt]
+    \footnotesize\normalfont\normalcolor
+    \textit{entry point}
+  };
+
+  % -- Arrows -----------------------------------------------
+  \draw[bluearrow] (deriveM) -- node[arrowlabel, left]{produces $M$} (bm);
+  \draw[myarrow]   (bm)      -- node[arrowlabel, above left]{calls}  (deriveM);
+  \draw[bluearrow] (bm)      -- node[arrowlabel, right]{stores $MG$} (eval);
+  \draw[myarrow]   (eval)    -- node[arrowlabel, right]{reads}       (bm);
+  \draw[myarrow]   (print)   -- node[arrowlabel, left]{calls}        (fmt);
+  \draw[myarrow]   (print)   -- node[arrowlabel, right]{calls}       (tbl);
+  \draw[myarrow]   (print)   -- node[arrowlabel, above]{reads}       (bm);
+  \draw[myarrow]   (print)   |- node[arrowlabel, right, pos=0.8]{calls} (eval);
+  \draw[redarrow]  (main)    -- node[arrowlabel, above]{calls}       (bm);
+  \draw[redarrow]  (main)    |- node[arrowlabel, right, pos=0.75]{calls} (print);
+
+\end{tikzpicture}
+\end{center}
+
+\bigskip
+\begin{notebox}
+\textbf{What is genuinely new in this script.}
+Scripts~01 and~02 had custom polynomial types and evaluation logic.
+This script has none of that --- it uses Julia's built-in
+\cd{Matrix\{Float64\}} and the \cd{*} operator, which Julia
+already knows how to multiply.
+The novel parts are \cd{derive\_M} (the index arithmetic),
+\cd{evaluate\_all} (the 2-D array comprehension), and
+\cd{print\_table} (the general-purpose table formatter
+with keyword arguments and two display styles).
+\end{notebox}
+
+
+% =============================================================
+\needspace{8\baselineskip}
+\section{The \texttt{BezierMatrix} Struct}
+% =============================================================
+
+\begin{minted}{julia}
+struct BezierMatrix
+    G      ::Matrix{Float64}
+    axes   ::Vector{String}
+    n      ::Int
+    degree ::Int
+    dim    ::Int
+    M      ::Matrix{Float64}
+    MG     ::Matrix{Float64}
+end
+\end{minted}
+
+\needspace{5\baselineskip}
+\subsection{\texttt{Matrix\{Float64\}}}
+
+\cd{Matrix\{Float64\}} is Julia's built-in 2-D array type
+for floating-point numbers.
+It is equivalent to \cd{Array\{Float64, 2\}}.
+Julia stores it in column-major order internally, but you
+index it with \cd{M[row, col]}.
+
+The three matrix fields:
+
+\begin{center}
+\begin{tabular}{llp{7cm}}
+\toprule
+Field & Shape & Contents \\
+\midrule
+\cd{G} & $(n+1) \times \text{dim}$ &
+  The geometry matrix --- control point coordinates.
+  Row $i$ = point $P_{i-1}$, column $j$ = axis $j$. \\[4pt]
+\cd{M} & $(n+1) \times (n+1)$ &
+  The basis matrix --- Bernstein expansion coefficients.
+  Column $i$ = monomial coefficients of $B(n,i,u)$,
+  top to bottom from highest power to constant. \\[4pt]
+\cd{MG} & $(n+1) \times \text{dim}$ &
+  Pre-computed product $M \cdot G$.
+  Row $k$ = coefficient of $u^{n-k}$ for each axis. \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\needspace{5\baselineskip}
+\subsection{The constructor}
+
+\begin{minted}{julia}
+function BezierMatrix(points::Matrix{Float64}, axes::Vector{String})
+    n   = size(points, 1)
+    deg = n - 1
+    M   = derive_M(deg)
+    BezierMatrix(points, axes, n, deg, length(axes), M, M * points)
+end
+\end{minted}
+
+\cd{size(points, 1)} returns the number of rows in the matrix ---
+the number of control points.
+
+\cd{M * points} is a plain Julia matrix multiplication.
+Because \cd{M} is $(n+1) \times (n+1)$ and \cd{points} is
+$(n+1) \times \text{dim}$, the result \cd{MG} is
+$(n+1) \times \text{dim}$ --- exactly what we need.
+
+\begin{examplebox}
+For Case~2 (quartic, 3-D):
+
+\cd{size(points, 1) = 5}, so \cd{n = 5}, \cd{deg = 4}.
+
+\cd{M} is $5 \times 5$.
+
+\cd{points} (i.e.\ \cd{G}) is $5 \times 3$.
+
+\cd{M * points} gives a $5 \times 3$ matrix \cd{MG}.
+
+The final constructor call passes all seven fields in order:
+\cd{points}, \cd{axes}, \cd{n=5}, \cd{deg=4},
+\cd{length(axes)=3}, \cd{M}, \cd{M*points}.
+\end{examplebox}
+
+
+% =============================================================
+\needspace{8\baselineskip}
+\section{\texttt{derive\_M} --- Building the Basis Matrix}
+% =============================================================
+
+\textit{This is the most intricate function in the script.
+Two nested loops, index arithmetic that needs careful reading,
+and a formula connecting Bernstein polynomials to matrix entries.
+Go slowly here.}
+
+\begin{minted}{julia}
+function derive_M(deg::Int)::Matrix{Float64}
+    n = deg
+    M = zeros(Float64, n+1, n+1)
+    for i in 0:n
+        m = n - i
+        for j in 0:m
+            k = i + j
+            M[n-k+1, i+1] = binomial(n,i) * binomial(m,j) * (-1)^j
+        end
+    end
+    return M
+end
+\end{minted}
+
+\needspace{5\baselineskip}
+\subsection{What the formula computes}
+
+The entry $M[n-k+1,\; i+1]$ is the coefficient of $u^{n-k}$
+in the Bernstein polynomial $B(n, i, u)$.
+
+This comes from expanding $B(n,i,u) = \binom{n}{i} u^i (1-u)^{n-i}$:
+\begin{enumerate}
+  \item Apply the binomial theorem to $(1-u)^{n-i} = (1-u)^m$:
+        each term contributes $\binom{m}{j}(-1)^j u^j$.
+  \item Multiplying by $u^i$ shifts the power: $u^i \cdot u^j = u^{i+j}$.
+  \item So $k = i + j$ is the total power of $u$ in that term.
+  \item Multiplying by $\binom{n}{i}$ gives the full coefficient.
+\end{enumerate}
+
+\needspace{5\baselineskip}
+\subsection{Index translation: Julia is 1-indexed}
+
+The mathematical formula uses 0-based indices:
+column $i$ (from 0 to $n$), row for power $k$ (from 0 to $n$).
+Julia arrays are 1-indexed.
+The translation is:
+\begin{itemize}
+  \item Column $i$ in math $\to$ column \cd{i+1} in Julia.
+  \item Row for power $u^k$ $\to$ highest power is at row~1,
+        so power $u^k$ is at row $n - k + 1$.
+\end{itemize}
+
+Therefore \cd{M[n-k+1, i+1]}.
+
+\begin{examplebox}
+\textbf{Trace the loop for $n=4$, $i=1$, $j=2$:}
+
+\cd{m = n - i = 3}
+
+\cd{k = i + j = 1 + 2 = 3} \quad (power of $u$ is $u^3$)
+
+\cd{M[n-k+1, i+1] = M[4-3+1, 1+1] = M[2, 2]}
+
+Value: $\binom{4}{1} \cdot \binom{3}{2} \cdot (-1)^2 = 4 \cdot 3 \cdot 1 = 12$
+
+This says: the coefficient of $u^3$ in $B(4,1,u)$ is $+12$.
+
+Verify: $B(4,1,u) = 4u(1-u)^3 = 4u - 12u^2 + 12u^3 - 4u^4$.
+The coefficient of $u^3$ is indeed $+12$. \checkmark
+\end{examplebox}
+
+\begin{examplebox}
+\textbf{Why the inner loop runs \cd{j in 0:m} and not \cd{0:n}:}
+
+$B(n,i,u) = \binom{n}{i} u^i (1-u)^{n-i}$.
+The factor $(1-u)^m$ where $m = n-i$ contributes powers
+$u^0$ through $u^m$.
+After multiplying by $u^i$, the total power $k = i+j$
+runs from $i$ to $i+m = n$.
+
+Entries for $k < i$ are zero (the polynomial has no $u^k$
+term below $u^i$).
+The loop simply never writes to those positions ---
+they remain zero from the \cd{zeros()} initialisation.
+\end{examplebox}
+
+\needspace{5\baselineskip}
+\subsection{\texttt{zeros(Float64, n+1, n+1)}}
+
+\cd{zeros(Float64, n+1, n+1)} creates an $(n+1) \times (n+1)$
+matrix filled with \cd{0.0}.
+This is important: entries that the loop never touches
+(where $k < i$, i.e.\ below the anti-diagonal) stay zero,
+which is the correct value --- those Bernstein polynomial
+terms do not exist.
+
+
+% =============================================================
+\needspace{8\baselineskip}
+\section{\texttt{U\_vec} and \texttt{evaluate\_all}}
+% =============================================================
+
+\needspace{5\baselineskip}
+\subsection{\texttt{U\_vec} --- building a single parameter row vector}
+
+\begin{minted}{julia}
+function U_vec(deg::Int, u::Float64)::Matrix{Float64}
+    reshape([u^(deg-k) for k in 0:deg], 1, deg+1)
+end
+\end{minted}
+
+The list comprehension \cd{[u\^{}(deg-k) for k in 0:deg]}
+produces a plain 1-D vector:
+$[u^{deg},\; u^{deg-1},\; \ldots,\; u^1,\; u^0]$.
+
+\cd{reshape(..., 1, deg+1)} changes its shape from
+a length-$(deg+1)$ vector to a $1 \times (deg+1)$ matrix
+--- a single row.
+
+This is necessary because Julia distinguishes between
+a length-5 vector (shape \cd{(5,)}) and a $1 \times 5$ matrix
+(shape \cd{(1,5)}).
+Matrix multiplication \cd{U * MG} requires \cd{U} to be
+a matrix, not a vector.
+
+\begin{examplebox}
+For \cd{deg=4}, \cd{u=0.5}:
+
+\cd{[0.5\^{}4, 0.5\^{}3, 0.5\^{}2, 0.5\^{}1, 0.5\^{}0]}
+$= [0.0625, 0.125, 0.25, 0.5, 1.0]$
+
+After \cd{reshape}: a $1 \times 5$ matrix.
+
+\cd{U\_vec(4, 0.5) * bm.MG} then gives a $1 \times 3$ matrix ---
+the $x$, $y$, $z$ values at $u = 0.5$.
+\end{examplebox}
+
+\needspace{5\baselineskip}
+\subsection{\texttt{evaluate\_all} --- batch evaluation}
+
+\begin{minted}{julia}
+function evaluate_all(bm::BezierMatrix,
+                      u_values::Vector{Float64})::Matrix{Float64}
+    n    = bm.degree
+    Uall = [u^(n-k) for u in u_values, k in 0:n]
+    Uall * bm.MG
+end
+\end{minted}
+
+This evaluates the curve at all $u$ values simultaneously
+with a single matrix multiplication.
+
+\textbf{The 2-D array comprehension:}
+
+\cd{[u\^{}(n-k) for u in u\_values, k in 0:n]}
+
+This is a \textbf{two-variable comprehension}.
+The result is a 2-D matrix where:
+\begin{itemize}
+  \item Each \textbf{row} corresponds to one value in \cd{u\_values}.
+  \item Each \textbf{column} corresponds to one value of \cd{k}
+        (i.e.\ one power of $u$, from $u^n$ down to $u^0$).
+\end{itemize}
+
+\begin{examplebox}
+For \cd{u\_values = [0.0, 0.25, 0.5, 0.75, 1.0]} and \cd{n=4}:
+
+\[
+  U_{\text{all}} =
+  \begin{bmatrix}
+    0^4    & 0^3    & 0^2    & 0    & 1 \\
+    0.25^4 & 0.25^3 & 0.25^2 & 0.25 & 1 \\
+    0.5^4  & 0.5^3  & 0.5^2  & 0.5  & 1 \\
+    0.75^4 & 0.75^3 & 0.75^2 & 0.75 & 1 \\
+    1^4    & 1^3    & 1^2    & 1    & 1
+  \end{bmatrix}
+\]
+
+$U_{\text{all}}$ is $5 \times 5$.
+\cd{MG} is $5 \times 3$.
+The product is $5 \times 3$ --- five points, three coordinates each.
+Row $i$ of the result is the curve point at \cd{u\_values[i]}.
+\end{examplebox}
+
+\begin{notebox}
+\textbf{Why this is faster than calling \cd{U\_vec} five times.}
+
+Calling \cd{U\_vec} once per $u$ value then multiplying
+would perform five separate $1 \times 5$ times $5 \times 3$
+multiplications.
+\cd{evaluate\_all} stacks all five $U$ rows into one matrix
+and does one $5 \times 5$ times $5 \times 3$ multiplication.
+For large $N$ (many $u$ values), this is dramatically more
+efficient because BLAS (Julia's matrix library) is highly
+optimised for large matrix multiplications.
+\end{notebox}
+
+
+% =============================================================
+\needspace{8\baselineskip}
+\section{Formatting Helpers}
+% =============================================================
+
+\needspace{5\baselineskip}
+\subsection{\texttt{fmt} --- integer or 4 decimal places}
+
+\begin{minted}{julia}
+fmt(v::Float64) =
+    abs(v - round(v)) < 1e-9 ? string(Int(round(v))) : @sprintf("%.4f", v)
+\end{minted}
+
+A one-line function using the ternary operator \cd{? :}.
+If \cd{v} is within $10^{-9}$ of a whole number,
+print it as an integer; otherwise print 4 decimal places.
+
+\begin{examplebox}
+\cd{fmt(13.0)} $\to$ \cd{"13"} \\
+\cd{fmt(-32.0)} $\to$ \cd{"-32"} \\
+\cd{fmt(2.8125)} $\to$ \cd{"2.8125"} (4 d.p.)
+\end{examplebox}
+
+\needspace{5\baselineskip}
+\subsection{\texttt{fmt\_frac} --- float to exact fraction string}
+
+\begin{minted}{julia}
+function fmt_frac(v::Float64)
+    r = rationalize(Int, v; tol=1e-9)
+    abs(Float64(r) - v) < 1e-9 || return @sprintf("%.4f", v)
+    isone(denominator(r)) ? string(numerator(r)) : string(r)
+end
+\end{minted}
+
+This converts a \cd{Float64} to its nearest exact rational
+representation and formats it as a string.
+
+\cd{rationalize(Int, v; tol=1e-9)} finds the simplest fraction
+$p/q$ such that $|p/q - v| < 10^{-9}$.
+
+\textbf{The short-circuit check:}
+\cd{abs(Float64(r) - v) < 1e-9 || return ...}
+
+This reads: ``if the condition is false, return the fallback.''
+The \cd{||} operator short-circuits --- if the left side is
+\cd{false}, the right side (\cd{return}) executes.
+This is a compact Julia idiom for early exit on failure.
+
+\begin{examplebox}
+\cd{fmt\_frac(0.0625)} $\to$ \cd{rationalize} finds \cd{1//16}
+$\to$ denominator is not 1 $\to$ \cd{"1//16"}
+
+\cd{fmt\_frac(5.0)} $\to$ \cd{rationalize} finds \cd{5//1}
+$\to$ \cd{isone(denominator) = true} $\to$ \cd{"5"}
+
+\cd{fmt\_frac(1.050781)} $\to$ \cd{rationalize} finds \cd{269//256}
+$\to$ \cd{"269//256"}
+\end{examplebox}
+
+\needspace{5\baselineskip}
+\subsection{\texttt{fmt\_poly} --- coefficient vector to polynomial string}
+
+\begin{minted}{julia}
+function fmt_poly(coeffs::Vector{Float64}, deg::Int)
+    terms = Tuple{Float64,String}[]
+    for (k, c) in enumerate(coeffs)
+        k -= 1
+        abs(c) < 1e-9 && continue
+        power = deg - k
+        u_s   = power == 0 ? "" : (power == 1 ? "u" :
+                 "u$(get(SUPERSCRIPTS, power, "^$power"))")
+        c_s   = fmt(abs(c))
+        c_s   = (c_s == "1" && !isempty(u_s)) ? "" : c_s
+        push!(terms, (c, c_s * u_s))
+    end
+    isempty(terms) && return "0"
+    parts = String[]
+    for (idx, (c, t)) in enumerate(terms)
+        push!(parts, idx == 1 ? (c < 0 ? "-$t" : t) :
+                                (c < 0 ? "- $t" : "+ $t"))
+    end
+    join(parts, "  ")
+end
+\end{minted}
+
+This takes a column of \cd{MG} (one coefficient per power of $u$)
+and formats it as a human-readable polynomial string.
+
+\textbf{Key difference from script~01's \cd{fmt\_poly}:}
+Script~01 stored coefficients from constant to highest power
+(index 1 = $u^0$).
+Here the vector stores from \emph{highest} to lowest power
+(index 1 = $u^{deg}$), matching the row ordering of \cd{MG}.
+So the power is \cd{deg - k} (0-indexed), not \cd{k} directly.
+
+\begin{examplebox}
+For the $x$ column of \cd{MG}: \cd{[13.0, -32.0, 24.0, 0.0, 0.0]}
+with \cd{deg=4}:
+
+\medskip
+\begin{tabular}{lllll}
+\toprule
+\cd{k} (0-idx) & \cd{c} & \cd{power = deg-k} & \cd{u\_s} & term \\
+\midrule
+0 & 13.0  & 4 & \cd{"u\^{}4"} & \cd{"13u\^{}4"} \\
+1 & -32.0 & 3 & \cd{"u\^{}3"} & \cd{"32u\^{}3"} \\
+2 & 24.0  & 2 & \cd{"u\^{}2"} & \cd{"24u\^{}2"} \\
+3 & 0.0   & --- & skipped (\cd{< 1e-9}) & --- \\
+4 & 0.0   & --- & skipped & --- \\
+\bottomrule
+\end{tabular}
+
+\medskip
+Result: \cd{"13u\^{}4 - 32u\^{}3 + 24u\^{}2"}
+\end{examplebox}
+
+
+% =============================================================
+\needspace{8\baselineskip}
+\section{\texttt{print\_table} --- a General-Purpose Table Printer}
+% =============================================================
+
+\textit{This is the most complex function in the script ---
+not mathematically, but in terms of Julia language features.
+It introduces keyword arguments, \cd{Union} types,
+\cd{nothing}, and \cd{something()}.
+These are common Julia patterns worth understanding well.}
+
+\begin{minted}{julia}
+function print_table(
+        rows       ::Vector{Vector{String}},
+        headers    ::Vector{String};
+        row_labels ::Union{Vector{String}, Nothing} = nothing,
+        style      ::Symbol = :simple)
+\end{minted}
+
+\needspace{5\baselineskip}
+\subsection{Positional vs keyword arguments}
+
+The semicolon \cd{;} in the argument list separates
+\textbf{positional arguments} (before \cd{;}) from
+\textbf{keyword arguments} (after \cd{;}).
+
+Positional arguments must be passed in order without names.
+Keyword arguments are passed by name and have default values,
+so they are optional.
+
+\begin{examplebox}
+\textbf{Calling with positional arguments only:}
+\begin{minted}{julia}
+print_table(rows, headers)
+# Uses defaults: row_labels=nothing, style=:simple
+\end{minted}
+
+\textbf{Calling with keyword arguments:}
+\begin{minted}{julia}
+print_table(rows, headers; style=:outline)
+print_table(rows, headers; row_labels=["u^4","u^3",...], style=:simple)
+\end{minted}
+\end{examplebox}
+
+\needspace{5\baselineskip}
+\subsection{\texttt{Union\{Vector\{String\}, Nothing\}} and \texttt{nothing}}
+
+\cd{Union\{A, B\}} is Julia's way of saying:
+``this argument can be either type \cd{A} or type \cd{B}.''
+
+\cd{Nothing} is the type of the special value \cd{nothing},
+which represents the absence of a value ---
+similar to \cd{null} in other languages.
+
+\cd{Union\{Vector\{String\}, Nothing\}} therefore means:
+``either a vector of strings, or nothing (absent).''
+
+The default \cd{= nothing} means: if the caller does not
+provide \cd{row\_labels}, it defaults to \cd{nothing}.
+
+Inside the function, \cd{has\_rl = row\_labels !== nothing}
+checks whether row labels were actually provided.
+
+\begin{examplebox}
+\textbf{With row labels} (e.g.\ printing matrix $M$):
+\begin{minted}{julia}
+print_table(rows, headers; row_labels=["u^4","u^3","u^2","u","1"])
+\end{minted}
+Each row gets a label prepended: \cd{"u\^{}4  1  -4  6  -4  1"}.
+
+\textbf{Without row labels} (e.g.\ printing the $U$ vector):
+\begin{minted}{julia}
+print_table(u_row, u_headers)
+\end{minted}
+No label column; rows are printed without a prefix.
+\end{examplebox}
+
+\needspace{5\baselineskip}
+\subsection{\texttt{Symbol} and \texttt{:simple} / \texttt{:outline}}
+
+\cd{Symbol} is a Julia type for interned strings ---
+lightweight identifiers that begin with \cd{:}.
+\cd{:simple} and \cd{:outline} are two symbol values used here
+as an enumeration to select the table style.
+
+Using symbols rather than plain strings (\cd{"simple"}) is
+idiomatic Julia: symbols are guaranteed to be unique
+(two \cd{:simple} symbols are always the same object),
+and they are more efficient to compare.
+
+\needspace{5\baselineskip}
+\subsection{\texttt{something(label, "")}}
+
+Inside \cd{fmt\_row}:
+
+\begin{minted}{julia}
+has_rl && push!(parts, lpad(something(label, ""), rl_w))
+\end{minted}
+
+\cd{something(x, default)} returns \cd{x} if \cd{x} is not
+\cd{nothing}, otherwise returns \cd{default}.
+Here, if \cd{label} is \cd{nothing} (no label for this row),
+it uses an empty string \cd{""} as a placeholder,
+keeping the column width consistent.
+
+\needspace{5\baselineskip}
+\subsection{Column width calculation}
+
+\begin{minted}{julia}
+widths = [length(h) for h in headers]
+for row in rows
+    for (c, cell) in enumerate(row)
+        widths[c] = max(widths[c], length(cell))
+    end
+end
+\end{minted}
+
+This calculates the minimum width needed for each column:
+start with the header width, then expand to fit the widest
+cell in each column.
+Every cell is then left-padded (\cd{lpad}) to this width,
+ensuring columns align perfectly regardless of content.
+
+\needspace{5\baselineskip}
+\subsection{The two styles}
+
+\begin{minted}{julia}
+if style == :outline
+    println("  +=" * "="^(inner_w+2) * "=+")
+    println("  | " * lstrip(hdr) * " |")
+    println("  |=" * "="^(inner_w+2) * "=|")
+    for (r, row) in enumerate(rows)
+        println("  | " * lstrip(fmt_row(...)) * " |")
+    end
+    println("  +=" * "="^(inner_w+2) * "=+")
+else
+    println(hdr)
+    println(ubar)
+    for (r, row) in enumerate(rows)
+        println(fmt_row(...))
+    end
+end
+\end{minted}
+
+\cd{:simple} --- plain header with a dashed underline.
+Used for all intermediate tables (the $M$ matrix, $U$ vector, etc.).
+
+\cd{:outline} --- box border using Unicode box-drawing
+characters (\cd{+}, \cd{|}, \cd{=}).
+Used only for the final summary table in Step~5,
+to visually distinguish it.
+
+\begin{notebox}
+\textbf{\cd{lstrip(hdr)} inside the outline style.}
+\cd{fmt\_row} prepends two spaces for alignment.
+Inside the \cd{:outline} style, those leading spaces would
+push content away from the box border.
+\cd{lstrip} strips them so the content sits flush
+against the \cd{| } prefix.
+\end{notebox}
+
+
+% =============================================================
+\needspace{8\baselineskip}
+\section{\texttt{print\_labeled\_matrix}}
+% =============================================================
+
+\begin{minted}{julia}
+function print_labeled_matrix(
+        mat        ::Matrix{Float64},
+        row_labels ::Vector{String},
+        col_labels ::Vector{String};
+        fmt_fn     = fmt,
+        style      ::Symbol = :simple)
+    rows = [[fmt_fn(mat[r,c]) for c in 1:size(mat,2)]
+            for r in 1:size(mat,1)]
+    print_table(rows, col_labels; row_labels=row_labels, style=style)
+end
+\end{minted}
+
+This is a thin convenience wrapper over \cd{print\_table}.
+It accepts a raw \cd{Matrix\{Float64\}} and converts it to
+the \cd{Vector\{Vector\{String\}\}} format that \cd{print\_table}
+expects, by applying \cd{fmt\_fn} to every element.
+
+\textbf{The keyword argument \cd{fmt\_fn = fmt}:}
+\cd{fmt\_fn} is a \textbf{function-valued argument} with a
+default value of \cd{fmt}.
+Callers can pass a different formatting function ---
+for example \cd{fmt\_frac} to show fractions instead of decimals ---
+without changing any other behaviour.
+This is a clean way to parameterise formatting.
+
+\begin{examplebox}
+\textbf{Used in two different ways in the script:}
+
+\begin{minted}{julia}
+# Print M matrix with integer formatting (default fmt)
+print_labeled_matrix(bm.M, row_labels, col_labels)
+
+# Print MG matrix with integer formatting (default fmt)
+print_labeled_matrix(bm.MG, row_labels, bm.axes)
+\end{minted}
+
+If you wanted fractions in the output, you could call:
+\begin{minted}{julia}
+print_labeled_matrix(bm.MG, row_labels, bm.axes; fmt_fn=fmt_frac)
+\end{minted}
+\end{examplebox}
+
+
+% =============================================================
+\needspace{8\baselineskip}
+\section{Print Functions}
+% =============================================================
+
+\textit{All five print functions follow the same structure:
+they receive \cd{bm::BezierMatrix} (and for steps~4 and~5,
+the \cd{u\_values} vector), read fields from \cd{bm},
+call helpers, and write to the terminal.
+None return a value.}
+
+% -------------------------------------------------------
+\needspace{8\baselineskip}
+\subsection{\texttt{print\_step\_header} --- one-liner with parentheses}
+
+\begin{minted}{julia}
+print_step_header(step::Int, title::String) = (
+    println();
+    println("  STEP $step - $title");
+    println("  " * "-"^(WIDTH-2))
+)
+\end{minted}
+
+\textbf{Input:} a step number (\cd{Int}) and a title string.
+
+\textbf{Output:}
+\begin{minted}{text}
+  STEP 2 - Derive Basis Matrix M from Bernstein Polynomials
+  ----------------------------------------------------------------
+\end{minted}
+
+Instead of \cd{function ... end}, this uses the short
+assignment form \cd{name(args) = body}.
+Multiple statements are grouped with parentheses and
+separated by semicolons --- purely a style choice,
+identical in behaviour to the long form.
+
+% -------------------------------------------------------
+\needspace{8\baselineskip}
+\subsection{\texttt{print\_step1\_define}}
+
+\begin{minted}{julia}
+function print_step1_define(bm::BezierMatrix)
+    print_step_header(1, "Matrix Formulation:  P(u) = U * M * G")
+    n = bm.degree
+    println()
+    println("  P(u)  =  U(u)  *  M  *  G")
+    println()
+    println("  U(u)  shape (1x$(n+1))  parameter vector  [u^$n, ..., u, 1]")
+    println("  M     shape ($(n+1)x$(n+1))  basis matrix ...")
+    println("  G     shape ($(n+1)x$(bm.dim))  geometry matrix ...")
+    println()
+    print_labeled_matrix(bm.G, ["P$(i-1)" for i in 1:bm.n], bm.axes)
+end
+\end{minted}
+
+\textbf{Input:} \cd{bm} --- reads \cd{bm.degree}, \cd{bm.n},
+\cd{bm.dim}, \cd{bm.G}, \cd{bm.axes}.
+
+\textbf{How it works:}
+Prints the formula and the shape of each matrix using
+string interpolation (\cd{\$(n+1)} inserts the value at
+print time).
+Then calls \cd{print\_labeled\_matrix(bm.G, ...)} to display
+the geometry matrix with row labels $P_0 \ldots P_4$
+and column labels from \cd{bm.axes}.
+
+\textbf{Output (Case 2):}
+\begin{minted}{text}
+  STEP 1 - Matrix Formulation:  P(u) = U * M * G
+  ----------------------------------------------------------------
+
+  P(u)  =  U(u)  *  M  *  G
+
+  U(u)  shape (1x5)  parameter vector  [u^4, ..., u, 1]
+  M     shape (5x5)  basis matrix  (derived from Bernstein)
+  G     shape (5x3)  geometry matrix  (control points)
+
+      x  y  z
+      -  -  -
+  P0  0  0  1
+  P1  0  4  1
+  P2  4  0  1
+  P3  4  4  1
+  P4  5  4  1
+\end{minted}
+
+The table is \cd{bm.G} printed by \cd{print\_labeled\_matrix},
+with row labels \cd{["P0","P1","P2","P3","P4"]}
+and column labels \cd{["x","y","z"]}.
+
+% -------------------------------------------------------
+\needspace{8\baselineskip}
+\subsection{\texttt{print\_step2\_derive\_M}}
+
+\begin{minted}{julia}
+function print_step2_derive_M(bm::BezierMatrix)
+    print_step_header(2, "Derive Basis Matrix M from Bernstein Polynomials")
+    n   = bm.degree
+    sup = SUPERSCRIPTS
+    ...
+    for i in 0:n
+        m = n - i
+        b   = binomial(n, i) == 1 ? "" : string(binomial(n, i))
+        u_p = i == 0 ? "" : (i == 1 ? "u" : "u$(get(sup, i, "^$i"))")
+        v_p = m == 0 ? "" : (m == 1 ? "(1-u)" : "(1-u)$(get(sup,m,"^$m"))")
+        println("  Column $i  ->  B($n,$i,u)  =  $(b)$(u_p)$(v_p)")
+        for k in 0:n
+            c = bm.M[k+1, i+1]
+            abs(c) < 1e-9 && continue
+            power = n - k
+            u_str = power == 0 ? "1" : (power == 1 ? "u" : "u^$power")
+            println("    M[$k,$i]  =  $(lpad(Int(round(c)), 4))   (coeff of $u_str)")
+        end
+        println()
+    end
+    println("  Full M matrix:")
+    println()
+    print_labeled_matrix(bm.M, ["u^$(n-k)" for k in 0:n],
+                               ["P$(i-1)" for i in 1:bm.n])
+end
+\end{minted}
+
+\textbf{Input:} \cd{bm} --- reads \cd{bm.degree}, \cd{bm.M}.
+
+\textbf{How it works:}
+Prints the derivation formula, then loops \cd{i in 0:n}
+(one iteration per column of $M$, i.e.\ per Bernstein basis polynomial).
+
+The \textbf{outer loop} builds the symbolic label for each
+$B(n,i,u)$ using the same superscript-dictionary trick
+as the previous scripts.
+
+The \textbf{inner loop} iterates \cd{k in 0:n} over all rows.
+It reads \cd{bm.M[k+1, i+1]} (1-indexed), skips
+near-zero entries with \cd{abs(c) < 1e-9 \&\& continue},
+and prints each non-zero entry with its power label.
+
+Finally, \cd{print\_labeled\_matrix(bm.M, ...)} prints the
+complete $M$ matrix with row labels \cd{["u\^{}4","u\^{}3",...]}
+and column labels \cd{["P0","P1",...]}.
+
+\textbf{Output (Case 2, columns 0 and 1 shown):}
+\begin{minted}{text}
+  Column 0  ->  B(4,0,u)  =  (1-u)^4
+    M[0,0]  =     1   (coeff of u^4)
+    M[1,0]  =    -4   (coeff of u^3)
+    M[2,0]  =     6   (coeff of u^2)
+    M[3,0]  =    -4   (coeff of u)
+    M[4,0]  =     1   (coeff of 1)
+
+  Column 1  ->  B(4,1,u)  =  4u(1-u)^3
+    M[0,1]  =    -4   (coeff of u^4)
+    M[1,1]  =    12   (coeff of u^3)
+    M[2,1]  =   -12   (coeff of u^2)
+    M[3,1]  =     4   (coeff of u)
+
+  Full M matrix:
+
+       P0   P1   P2  P3  P4
+       --  ---  ---  --  --
+  u^4   1   -4    6  -4   1
+  u^3  -4   12  -12   4   0
+  u^2   6  -12    6   0   0
+  u^1  -4    4    0   0   0
+  u^0   1    0    0   0   0
+\end{minted}
+
+\begin{notebox}
+The inner loop only prints non-zero entries.
+Column~2 ($B(4,2,u) = 6u^2(1-u)^2$) starts at $u^2$,
+so rows for $u^1$ and $u^0$ are skipped entirely.
+Column~4 ($u^4$) has only one entry.
+The full matrix table at the end fills in the zeros
+that the per-column derivation omitted.
+\end{notebox}
+
+% -------------------------------------------------------
+\needspace{8\baselineskip}
+\subsection{\texttt{print\_step3\_MG}}
+
+\begin{minted}{julia}
+function print_step3_MG(bm::BezierMatrix)
+    print_step_header(3, "Compute  M * G  - Polynomial Coefficient Matrix")
+    n = bm.degree
+    println()
+    println("  M * G  gives the monomial coefficients for each axis.")
+    println("  Row k of (M*G) is the coefficient of u^(n-k).")
+    println()
+    print_labeled_matrix(bm.MG, ["u^$(n-k)" for k in 0:n], bm.axes)
+    println()
+    println("  Resulting polynomials:")
+    for (d, axis) in enumerate(bm.axes)
+        println("    $(axis)(u)  =  $(fmt_poly(bm.MG[:,d], n))")
+    end
+end
+\end{minted}
+
+\textbf{Input:} \cd{bm} --- reads \cd{bm.degree}, \cd{bm.MG}, \cd{bm.axes}.
+
+\textbf{How it works:}
+Prints the pre-computed \cd{bm.MG} matrix as a labelled table,
+then loops over axes and calls \cd{fmt\_poly} on each column
+of \cd{MG} to produce the polynomial string.
+
+\cd{bm.MG[:,d]} is Julia's column-slice syntax:
+all rows of column \cd{d}.
+This gives a \cd{Vector\{Float64\}} --- the monomial
+coefficients for axis \cd{d}, from highest power down.
+
+\textbf{Output (Case 2):}
+\begin{minted}{text}
+  STEP 3 - Compute  M * G  - Polynomial Coefficient Matrix
+  ----------------------------------------------------------------
+
+  M * G  gives the monomial coefficients for each axis.
+  Row k of (M*G) is the coefficient of u^(n-k).
+
+         x    y  z
+       ---  ---  -
+  u^4   13  -28  0
+  u^3  -32   64  0
+  u^2   24  -48  0
+  u^1    0   16  0
+  u^0    0    0  1
+
+  Resulting polynomials:
+    x(u)  =  13u^4  - 32u^3  + 24u^2
+    y(u)  =  -28u^4  + 64u^3  - 48u^2  + 16u
+    z(u)  =  1
+\end{minted}
+
+\begin{examplebox}
+\textbf{How \cd{fmt\_poly} reads the $x$ column:}
+
+\cd{bm.MG[:,1] = [13.0, -32.0, 24.0, 0.0, 0.0]}
+(index 1 = $x$ axis, rows from $u^4$ down to $u^0$).
+
+\cd{fmt\_poly} loops with 0-indexed \cd{k}:
+\cd{power = deg - k = 4 - k}.
+
+\medskip
+\begin{tabular}{lllll}
+\toprule
+\cd{k} & coefficient & power & skipped? & term \\
+\midrule
+0 & $+13$ & 4 & no & \cd{"13u\^{}4"} \\
+1 & $-32$ & 3 & no & \cd{"32u\^{}3"} \\
+2 & $+24$ & 2 & no & \cd{"24u\^{}2"} \\
+3 & $0$   & 1 & yes (\cd{< 1e-9}) & --- \\
+4 & $0$   & 0 & yes & --- \\
+\bottomrule
+\end{tabular}
+
+\medskip
+Result: \cd{"13u\^{}4  - 32u\^{}3  + 24u\^{}2"}
+\end{examplebox}
+
+% -------------------------------------------------------
+\needspace{8\baselineskip}
+\subsection{\texttt{print\_step4\_evaluate}}
+
+\begin{minted}{julia}
+function print_step4_evaluate(bm::BezierMatrix,
+                              u_values::Vector{Float64})
+    print_step_header(4, "Evaluate  U * (M * G)  at Each u Value")
+    n = bm.degree
+    for u in u_values
+        Uv = U_vec(n, u)
+        pt = vec(Uv * bm.MG)
+        println()
+        println("  -- u = $u " * "-"^(WIDTH - 10 - length(string(u))))
+        u_headers = ["u^$(n-k)" for k in 0:n]
+        u_row     = [[fmt_frac(Uv[1, k+1]) for k in 0:n]]
+        println()
+        println("  U  =")
+        print_table(u_row, u_headers)
+        println()
+        println("  U * (M*G)  =  P(u):")
+        for (d, axis) in enumerate(bm.axes)
+            mg_col    = bm.MG[:, d]
+            dot_parts = [
+                "$(fmt_frac(Uv[1,k+1]))*($(fmt(mg_col[k+1])))"
+                for k in 0:n
+                if abs(mg_col[k+1]) > 1e-9 || abs(Uv[1,k+1]) > 1e-9
+            ]
+            println("    $(axis)(u)  =  $(join(dot_parts, "  +  "))")
+            println("           =  $(fmt_frac(pt[d]))")
+        end
+    end
+end
+\end{minted}
+
+\textbf{Input:} \cd{bm} (reads \cd{bm.degree}, \cd{bm.MG},
+\cd{bm.axes}) and \cd{u\_values::Vector\{Float64\}}.
+
+\textbf{How it works:}
+Loops over each \cd{u} value.
+For each one:
+
+\begin{enumerate}
+  \item \cd{U\_vec(n, u)} builds the $1 \times 5$ row vector
+        of powers.
+  \item \cd{vec(Uv * bm.MG)} multiplies and flattens to a
+        length-3 vector \cd{pt} (one value per axis).
+        \cd{vec()} is needed because \cd{Uv * bm.MG}
+        returns a $1 \times 3$ matrix, not a vector.
+  \item The \cd{U} table is printed with \cd{print\_table},
+        where \cd{u\_row} is wrapped in an extra
+        \cd{[...]} to make it a \cd{Vector\{Vector\{String\}\}}
+        --- one row containing all the power values.
+  \item The dot product display loops over axes,
+        reads the corresponding column of \cd{bm.MG},
+        and builds the term strings.
+        The \cd{if} filter keeps a term if \emph{either}
+        $U[k]$ or $MG[k]$ is non-zero --- so zero-coefficient
+        terms are still shown when $U[k] \neq 0$,
+        making the dot product fully explicit.
+\end{enumerate}
+
+\textbf{Output (Case 2, $u = 0.5$ block only):}
+\begin{minted}{text}
+  -- u = 0.5 -------------------------------------------------
+
+  U  =
+    u^4   u^3   u^2   u^1  u^0
+  -----  ----  ----  ----  ---
+  1//16  1//8  1//4  1//2    1
+
+  U * (M*G)  =  P(u):
+    x(u)  =  1//16*(13)  +  1//8*(-32)  +  1//4*(24)
+             +  1//2*(0)  +  1*(0)
+           =  45//16
+    y(u)  =  1//16*(-28)  +  1//8*(64)  +  1//4*(-48)
+             +  1//2*(16)  +  1*(0)
+           =  9//4
+    z(u)  =  1//16*(0)  +  1//8*(0)  +  1//4*(0)
+             +  1//2*(0)  +  1*(1)
+           =  1
+\end{minted}
+
+\begin{examplebox}
+\textbf{Tracing the $x$ line for $u = 0.5$:}
+
+\cd{Uv = [1/16, 1/8, 1/4, 1/2, 1]} (as \cd{Float64}).
+
+\cd{mg\_col = bm.MG[:,1] = [13, -32, 24, 0, 0]}.
+
+The comprehension iterates \cd{k = 0..4}:
+
+\medskip
+\begin{tabular}{lllll}
+\toprule
+\cd{k} & \cd{Uv[1,k+1]} & \cd{mg\_col[k+1]} & included? & term string \\
+\midrule
+0 & \cd{1/16} & \cd{13}  & yes (both non-zero) & \cd{"1//16*(13)"} \\
+1 & \cd{1/8}  & \cd{-32} & yes & \cd{"1//8*(-32)"} \\
+2 & \cd{1/4}  & \cd{24}  & yes & \cd{"1//4*(24)"} \\
+3 & \cd{1/2}  & \cd{0}   & yes ($U$ non-zero) & \cd{"1//2*(0)"} \\
+4 & \cd{1}    & \cd{0}   & yes ($U$ non-zero) & \cd{"1*(0)"} \\
+\bottomrule
+\end{tabular}
+
+\medskip
+\cd{pt[1] = vec(Uv * bm.MG)[1] = 45/16 = 2.8125}
+
+\cd{fmt\_frac(2.8125)} $\to$ \cd{"45//16"}
+\end{examplebox}
+
+% -------------------------------------------------------
+\needspace{8\baselineskip}
+\subsection{\texttt{print\_step5\_table}}
+
+\begin{minted}{julia}
+function print_step5_table(bm::BezierMatrix,
+                           u_values::Vector{Float64})
+    print_step_header(5, "Summary - Evaluation Table")
+    pts  = evaluate_all(bm, u_values)
+    rows = Vector{Vector{String}}()
+    for (i, u) in enumerate(u_values)
+        row = [fmt(u)]
+        for d in 1:bm.dim
+            v = pts[i, d]
+            push!(row, "$(fmt_frac(v))  ($(@sprintf("%.4f", v)))")
+        end
+        push!(rows, row)
+    end
+    println()
+    print_table(rows, vcat(["u"], ["$(ax)(u)" for ax in bm.axes]);
+                style=:outline)
+end
+\end{minted}
+
+\textbf{Input:} \cd{bm} (reads \cd{bm.dim}, \cd{bm.axes})
+and \cd{u\_values}.
+
+\textbf{How it works:}
+
+\begin{enumerate}
+  \item \cd{evaluate\_all(bm, u\_values)} computes all points
+        at once via the batch matrix multiplication,
+        returning a $5 \times 3$ matrix \cd{pts}.
+  \item Builds the \cd{rows} vector by looping over
+        \cd{u\_values}.
+        For each row: the \cd{u} value formatted with \cd{fmt},
+        then for each axis \cd{d}, the value \cd{pts[i,d]}
+        formatted as \cd{"fraction  (decimal)"} by combining
+        \cd{fmt\_frac} and \cd{@sprintf}.
+  \item \cd{vcat(["u"], [...])} prepends \cd{"u"} to the
+        axis label list to form the full header row.
+  \item \cd{print\_table(...; style=:outline)} prints the
+        box-bordered summary table.
+\end{enumerate}
+
+\textbf{Output (Case 2):}
+\begin{minted}{text}
+  STEP 5 - Summary - Evaluation Table
+  ----------------------------------------------------------------
+
+  +=============================================================+
+  | u       x(u)                y(u)               z(u)        |
+  |=============================================================|
+  | 0       0  (0.0000)         0  (0.0000)   1  (1.0000)      |
+  | 0.2500  269//256  (1.0508)  121//64  (1.8906)  1  (1.0000) |
+  | 0.5000  45//16  (2.8125)    9//4  (2.2500)   1  (1.0000)   |
+  | 0.7500  1053//256  (4.1133) 201//64  (3.1406)  1  (1.0000) |
+  | 1       5  (5.0000)         4  (4.0000)   1  (1.0000)      |
+  +=============================================================+
+\end{minted}
+
+\begin{notebox}
+\textbf{Why Step~4 and Step~5 evaluate the curve differently:}
+
+Step~4 calls \cd{U\_vec} + \cd{Uv * bm.MG} once per $u$ value ---
+one multiplication per point, useful for showing each
+individual dot product explicitly.
+
+Step~5 calls \cd{evaluate\_all} once for all $u$ values ---
+one batch matrix multiplication, useful for efficiency
+and for gathering all results into a summary table.
+
+Both routes produce the same numbers.
+The difference is pedagogical vs efficient.
+\end{notebox}
+
+
+% =============================================================
+\needspace{8\baselineskip}
+\section{Entry Point and \texttt{print\_all}}
+% =============================================================
+
+\begin{minted}{julia}
+function main()
+    data = CASE_DATA[CASE]
+    bm   = BezierMatrix(data.points, data.axes)
+    print_all(bm, data.u_values, CASE)
+end
+\end{minted}
+
+\cd{BezierMatrix(data.points, data.axes)} calls the constructor,
+which in turn calls \cd{derive\_M} and pre-computes \cd{MG}.
+All heavy computation is done here, once.
+
+\cd{print\_all} then calls the five print steps in order.
+Steps~1, 2, 3, and~5 read only from \cd{bm} (no new computation).
+Step~4 builds \cd{U\_vec} per $u$ value and multiplies ---
+but this is cheap because \cd{MG} is already available.
+
+\begin{notebox}
+\textbf{Computation summary:}
+
+\medskip
+\begin{tabular}{lp{8cm}}
+\toprule
+When & What happens \\
+\midrule
+Once, at construction &
+  \cd{derive\_M}: double loop filling $M$ \\
+  & \cd{M * points}: one matrix multiply to get \cd{MG} \\[4pt]
+Per $u$ in Step~4 &
+  \cd{U\_vec}: one list comprehension + reshape \\
+  & \cd{Uv * bm.MG}: one $1 \times 5$ times $5 \times 3$ multiply \\[4pt]
+Once in Step~5 &
+  \cd{evaluate\_all}: one $5 \times 5$ times $5 \times 3$ multiply \\
+\bottomrule
+\end{tabular}
+\end{notebox}
+
+\vspace{2em}\hrule\vspace{0.5em}
+{\small\textcolor{gray}{%
+Code explanation for \texttt{03-bezier-matrix-pedagogical.jl}
+\textbar{} Directed and curated by E.R.\ Nurwijayadi
+\textbar{} Code and explanations AI-generated}}
+
+\end{document}

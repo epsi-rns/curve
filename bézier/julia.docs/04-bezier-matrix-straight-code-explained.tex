@@ -1,0 +1,768 @@
+% ============================================================
+% 04-bezier-matrix-straight-code-explained.tex
+% Compile with:  pdflatex -shell-escape 04-bezier-matrix-straight-code-explained.tex
+% Run twice for table of contents.
+% ============================================================
+
+\documentclass[12pt, a4paper]{article}
+
+% ---- Encoding & fonts ----------------------------------------
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+
+% ---- Page geometry -------------------------------------------
+\usepackage[
+  top=2.5cm, bottom=2.5cm,
+  left=2.8cm, right=2.8cm
+]{geometry}
+
+% ---- Colours -------------------------------------------------
+\usepackage[dvipsnames]{xcolor}
+\definecolor{codebg}{RGB}{248,248,248}
+\definecolor{rulecolor}{RGB}{180,180,180}
+\definecolor{examplebg}{RGB}{240,248,255}
+\definecolor{examplerule}{RGB}{100,149,237}
+\definecolor{notebg}{RGB}{255,250,230}
+\definecolor{noterule}{RGB}{210,180,50}
+\definecolor{samebg}{RGB}{245,245,245}
+\definecolor{samerule}{RGB}{160,160,160}
+
+% ---- Minted --------------------------------------------------
+\usepackage{minted}
+\setminted[julia]{
+  bgcolor    = codebg,
+  frame      = leftline,
+  framerule  = 1.5pt,
+  rulecolor  = rulecolor,
+  linenos    = false,
+  fontsize   = \small,
+  breaklines = true,
+  tabsize    = 4,
+  style      = friendly,
+}
+\setminted[text]{
+  bgcolor    = codebg,
+  fontsize   = \small,
+  breaklines = true,
+}
+
+% ---- Math ----------------------------------------------------
+\usepackage{amsmath}
+\usepackage{amssymb}
+
+% ---- TikZ ----------------------------------------------------
+\usepackage{tikz}
+\usetikzlibrary{shapes.geometric, arrows.meta, positioning, backgrounds}
+
+% ---- Boxes ---------------------------------------------------
+\usepackage{mdframed}
+
+\newmdenv[
+  backgroundcolor  = examplebg,
+  linecolor        = examplerule, linewidth=1.5pt,
+  leftline=true, rightline=false, topline=false, bottomline=false,
+  innerleftmargin=10pt, innerrightmargin=8pt,
+  innertopmargin=6pt, innerbottommargin=6pt,
+  skipabove=6pt, skipbelow=4pt,
+]{examplebox}
+
+\newmdenv[
+  backgroundcolor  = notebg,
+  linecolor        = noterule, linewidth=1.5pt,
+  leftline=true, rightline=false, topline=false, bottomline=false,
+  innerleftmargin=10pt, innerrightmargin=8pt,
+  innertopmargin=6pt, innerbottommargin=6pt,
+  skipabove=6pt, skipbelow=4pt,
+]{notebox}
+
+\newmdenv[
+  backgroundcolor  = samebg,
+  linecolor        = samerule, linewidth=1.5pt,
+  leftline=true, rightline=false, topline=false, bottomline=false,
+  innerleftmargin=10pt, innerrightmargin=8pt,
+  innertopmargin=6pt, innerbottommargin=6pt,
+  skipabove=6pt, skipbelow=4pt,
+]{samebox}
+
+% ---- Hyperlinks ----------------------------------------------
+\usepackage[colorlinks=true, linkcolor=black, urlcolor=MidnightBlue]{hyperref}
+
+% ---- Misc ----------------------------------------------------
+\usepackage{booktabs}
+\usepackage{needspace}
+\usepackage{parskip}
+\usepackage{titlesec}
+\usepackage{fancyhdr}
+\usepackage{datetime2}
+
+% ---- Section formatting --------------------------------------
+\titleformat{\section}
+  {\large\bfseries\color{MidnightBlue}}
+  {\thesection.}{0.6em}{}[\vspace{-4pt}\rule{\linewidth}{0.4pt}]
+\titleformat{\subsection}
+  {\normalsize\bfseries\color{BrickRed}}
+  {\thesubsection.}{0.5em}{}
+\titleformat{\subsubsection}
+  {\normalsize\bfseries}
+  {\thesubsubsection.}{0.5em}{}
+
+% ---- Header / footer -----------------------------------------
+\pagestyle{fancy}
+\fancyhf{}
+\rhead{\textcolor{gray}{\small 04-bezier-matrix-straight-code-explained}}
+\lhead{\textcolor{gray}{\small B\'ezier Matrix Straight --- Code Explanation}}
+\cfoot{\thepage}
+\renewcommand{\headrulewidth}{0.3pt}
+
+% ---- Helpers -------------------------------------------------
+\newcommand{\cd}[1]{\texttt{#1}}
+\newcommand{\SAME}{\textcolor{samerule}{\textbf{[Same as script~03]}}\;}
+
+% ---- Title ---------------------------------------------------
+\title{%
+  \vspace{1cm}
+  {\LARGE\bfseries B\'ezier Curve --- Matrix Method (Straight)}\\[0.4em]
+  {\large $P(u) = U \cdot M \cdot G$}\\[0.4em]
+  {\large Code Explanation for Julia Beginners}\\[0.4em]
+  {\normalsize\texttt{04-bezier-matrix-straight.jl}}
+}
+\author{E.R.\ Nurwijayadi}
+\date{\DTMtoday}
+
+
+% =============================================================
+\begin{document}
+% =============================================================
+
+\maketitle
+\thispagestyle{empty}
+
+\begin{center}
+\textit{Directed and curated by E.R.\ Nurwijayadi.
+Code and explanations AI-generated.}
+\end{center}
+
+\begin{center}
+\begin{minipage}{0.85\textwidth}
+\small
+This document explains the Julia code in
+\cd{04-bezier-matrix-straight.jl} for readers new to Julia.
+The majority of this script is identical to script~03.
+This document focuses on what changed: the \cd{section()}
+helper that replaces \cd{print\_step\_header()}, the five
+new focused print functions, and one small change to
+\cd{print\_labeled\_matrix}.
+Shared components are listed with a reference to
+\cd{03-bezier-matrix-pedagogical-code-explained}
+rather than repeated.
+\end{minipage}
+\end{center}
+
+\vspace{1em}\hrule\vspace{1.5em}
+\tableofcontents
+\newpage
+
+
+% =============================================================
+\needspace{8\baselineskip}
+\section{Type Map: How the Pieces Fit Together}
+% =============================================================
+
+\textit{The computation core is unchanged from script~03.
+Only the print layer changed --- the five numbered step
+functions were replaced by five focused, single-purpose
+matrix printers.}
+
+\bigskip
+
+\tikzset{
+  structbox/.style={
+    rectangle, rounded corners=4pt,
+    draw=MidnightBlue, line width=1.5pt,
+    fill=examplebg,
+    text width=3.4cm, align=center,
+    font=\small\bfseries, inner sep=8pt
+  },
+  funcbox/.style={
+    rectangle, rounded corners=2pt,
+    draw=gray!60, line width=1pt,
+    fill=white,
+    text width=3.4cm, align=center,
+    font=\small, inner sep=7pt
+  },
+  samefunc/.style={
+    rectangle, rounded corners=2pt,
+    draw=samerule, line width=1pt,
+    fill=samebg,
+    text width=3.4cm, align=center,
+    font=\small, inner sep=7pt
+  },
+  entrybox/.style={
+    rectangle, rounded corners=4pt,
+    draw=BrickRed, line width=1.5pt,
+    fill=notebg,
+    text width=2.4cm, align=center,
+    font=\small\bfseries, inner sep=8pt
+  },
+  myarrow/.style={-Stealth, thick, draw=gray!70},
+  bluearrow/.style={-Stealth, thick, draw=MidnightBlue},
+  redarrow/.style={-Stealth, thick, draw=BrickRed!80},
+  arrowlabel/.style={font=\footnotesize\itshape, fill=white, inner sep=2pt}
+}
+
+\begin{center}
+\begin{tikzpicture}[node distance=1.4cm and 2.8cm]
+
+  % -- BezierMatrix struct (unchanged) ----------------------
+  \node[structbox] (bm) {%
+    \texttt{BezierMatrix}\\[3pt]
+    \footnotesize\normalfont
+    \texttt{G, M, MG::Matrix\{Float64\}}\\
+    \texttt{axes, n, degree, dim}
+  };
+
+  % -- derive_M + evaluate_all (unchanged) ------------------
+  \node[samefunc, below left=1.6cm and 0.3cm of bm] (core) {%
+    \texttt{derive\_M()}\\
+    \texttt{evaluate\_all()}\\[2pt]
+    \footnotesize\normalfont
+    \textit{unchanged from script~03}
+  };
+
+  % -- fmt helpers (unchanged) ------------------------------
+  \node[samefunc, below right=1.6cm and 0.3cm of bm] (fmt) {%
+    \textbf{Formatting helpers}\\[2pt]
+    \footnotesize\normalfont
+    \texttt{fmt}, \texttt{fmt\_frac},
+    \texttt{fmt\_poly}\\
+    \textit{unchanged from script~03}
+  };
+
+  % -- table printers (mostly unchanged) --------------------
+  \node[funcbox, below=1.3cm of core] (tbl) {%
+    \textbf{Table printers}\\[2pt]
+    \footnotesize\normalfont
+    \texttt{print\_table} (unchanged)\\
+    \texttt{print\_labeled\_matrix}\\
+    \textit{(lost \texttt{style} kwarg)}
+  };
+
+  % -- NEW: section() helper --------------------------------
+  \node[funcbox, below=1.3cm of fmt] (sec) {%
+    \texttt{section()} \textbf{[new]}\\[2pt]
+    \footnotesize\normalfont
+    \textit{replaces}\\
+    \texttt{print\_step\_header()}
+  };
+
+  % -- NEW: focused print functions -------------------------
+  \node[funcbox, below=1.3cm of tbl, xshift=2.1cm] (print) {%
+    \textbf{Print functions [new]}\\[2pt]
+    \footnotesize\normalfont
+    \texttt{print\_G}, \texttt{print\_M}\\
+    \texttt{print\_MG}, \texttt{print\_polynomials}\\
+    \texttt{print\_eval\_table}\\
+    \texttt{print\_all}
+  };
+
+  % -- main (unchanged) -------------------------------------
+  \node[entrybox, right=2.2cm of bm] (main) {%
+    \texttt{main()}\\[2pt]
+    \footnotesize\normalfont\normalcolor
+    \textit{entry point}\\
+    \textit{unchanged}
+  };
+
+  % -- Arrows -----------------------------------------------
+  \draw[bluearrow] (core)  -- node[arrowlabel,left]{builds $M$, $MG$} (bm);
+  \draw[myarrow]   (bm)    -- node[arrowlabel,above left]{calls} (core);
+  \draw[myarrow]   (print) -- node[arrowlabel,left]{calls}  (tbl);
+  \draw[myarrow]   (print) -- node[arrowlabel,right]{calls} (sec);
+  \draw[myarrow]   (print) -- node[arrowlabel,above]{reads} (bm);
+  \draw[myarrow]   (print) |- node[arrowlabel,right,pos=0.8]{calls} (core);
+  \draw[myarrow]   (print) -- node[arrowlabel,above]{calls} (fmt);
+  \draw[redarrow]  (main)  -- node[arrowlabel,above]{calls} (bm);
+  \draw[redarrow]  (main)  |- node[arrowlabel,right,pos=0.75]{calls} (print);
+
+\end{tikzpicture}
+\end{center}
+
+\bigskip
+\begin{notebox}
+\textbf{Legend:}
+Grey-shaded boxes are components unchanged from script~03.
+White boxes are new or modified.
+The computation core (\cd{BezierMatrix}, \cd{derive\_M},
+\cd{evaluate\_all}, formatting helpers, \cd{print\_table})
+is entirely reused.
+Only the print layer changed.
+\end{notebox}
+
+
+% =============================================================
+\needspace{8\baselineskip}
+\section{What Is Identical to Script 03}
+% =============================================================
+
+The following components are copied verbatim from script~03.
+They are documented fully in
+\cd{03-bezier-matrix-pedagogical-code-explained}.
+
+\begin{samebox}
+\begin{tabular}{lp{9cm}}
+\toprule
+Component & Notes \\
+\midrule
+\cd{CASE\_DATA} & Same control points, same $u$ values. \\
+\cd{BezierMatrix} struct & Fields \cd{G}, \cd{M}, \cd{MG},
+  \cd{axes}, \cd{n}, \cd{degree}, \cd{dim} --- unchanged. \\
+\cd{BezierMatrix} constructor & Calls \cd{derive\_M},
+  computes \cd{M * points}. \\
+\cd{derive\_M} & Double loop, index arithmetic
+  \cd{M[n-k+1, i+1]}, \cd{zeros()} initialisation. \\
+\cd{evaluate\_all} & 2-D array comprehension,
+  one batch matrix multiply \cd{Uall * bm.MG}. \\
+\cd{fmt} & Integer or 4 d.p. \\
+\cd{fmt\_frac} & Float $\to$ rational string,
+  short-circuit \cd{||} guard. \\
+\cd{fmt\_poly} & Coefficient vector $\to$ polynomial string,
+  reversed power order. \\
+\cd{print\_table} & Keyword args, \cd{Union\{...,Nothing\}},
+  \cd{:simple}/\cd{:outline} styles. \\
+\cd{ruler} & 66-character divider. \\
+\cd{SUPERSCRIPTS} & Superscript character dict. \\
+\cd{main} & \cd{CASE\_DATA[CASE]} $\to$ \cd{BezierMatrix}
+  $\to$ \cd{print\_all}. \\
+\bottomrule
+\end{tabular}
+\end{samebox}
+
+
+% =============================================================
+\needspace{8\baselineskip}
+\section{What Changed: \texttt{print\_labeled\_matrix}}
+% =============================================================
+
+Script~03:
+\begin{minted}{julia}
+function print_labeled_matrix(
+        mat        ::Matrix{Float64},
+        row_labels ::Vector{String},
+        col_labels ::Vector{String};
+        fmt_fn     = fmt,
+        style      ::Symbol = :simple)
+    rows = [[fmt_fn(mat[r,c]) for c in 1:size(mat,2)]
+            for r in 1:size(mat,1)]
+    print_table(rows, col_labels; row_labels=row_labels, style=style)
+end
+\end{minted}
+
+Script~04:
+\begin{minted}{julia}
+function print_labeled_matrix(
+        mat        ::Matrix{Float64},
+        row_labels ::Vector{String},
+        col_labels ::Vector{String};
+        fmt_fn     = fmt)
+    rows = [[fmt_fn(mat[r,c]) for c in 1:size(mat,2)]
+            for r in 1:size(mat,1)]
+    print_table(rows, col_labels; row_labels=row_labels)
+end
+\end{minted}
+
+The \cd{style} keyword argument is gone.
+Script~03 needed it because \cd{print\_labeled\_matrix}
+was called from both simple-table contexts (matrix display)
+and potentially outline contexts.
+Script~04 only ever calls \cd{print\_labeled\_matrix} for
+the three matrices ($G$, $M$, $M \cdot G$), which all use
+the default \cd{:simple} style.
+The outline table is only used in \cd{print\_eval\_table},
+which calls \cd{print\_table} directly with
+\cd{style=:outline}.
+
+Removing an unused parameter is good practice --- it
+simplifies the interface and removes a source of confusion.
+
+
+% =============================================================
+\needspace{8\baselineskip}
+\section{What Is New: \texttt{section()}}
+% =============================================================
+
+\begin{minted}{julia}
+section(title::String) = (
+    println();
+    println("  $title");
+    println("  " * "-"^(WIDTH-2))
+)
+\end{minted}
+
+This replaces \cd{print\_step\_header(step::Int, title::String)}
+from script~03.
+
+The difference is small but meaningful:
+
+\begin{center}
+\begin{tabular}{lll}
+\toprule
+ & Script~03 & Script~04 \\
+\midrule
+Signature & \cd{(step::Int, title::String)} &
+  \cd{(title::String)} \\
+Output & \cd{STEP 2 --- Derive Basis Matrix...} &
+  \cd{M --- Basis Matrix (derived from Bernstein)} \\
+\end{tabular}
+\end{center}
+
+Script~03 numbered its steps because the output was a
+structured walkthrough.
+Script~04 has no steps --- each section is an independent
+block labelled by its content, not by a sequence number.
+
+\begin{examplebox}
+\textbf{Script~03:}
+\begin{minted}{text}
+  STEP 2 - Derive Basis Matrix M from Bernstein Polynomials
+  ----------------------------------------------------------------
+\end{minted}
+
+\textbf{Script~04:}
+\begin{minted}{text}
+  M  - Basis Matrix (derived from Bernstein)
+  ----------------------------------------------------------------
+\end{minted}
+
+Same dashed rule, same indentation.
+Just no step number, and the title directly names the object
+being displayed.
+\end{examplebox}
+
+
+% =============================================================
+\needspace{8\baselineskip}
+\section{What Is New: The Five Print Functions}
+% =============================================================
+
+\textit{Script~03 had five numbered \cd{print\_stepN} functions,
+each performing a major computation or derivation and
+printing detailed working.
+Script~04 replaces them with five focused functions ---
+each one prints exactly one thing.}
+
+% -------------------------------------------------------
+\needspace{6\baselineskip}
+\subsection{\texttt{print\_G}}
+
+\begin{minted}{julia}
+function print_G(bm::BezierMatrix)
+    section("G  - Geometry Matrix (Control Points)")
+    println()
+    print_labeled_matrix(bm.G, ["P$(i-1)" for i in 1:bm.n], bm.axes)
+end
+\end{minted}
+
+\textbf{Input:} reads \cd{bm.G}, \cd{bm.n}, \cd{bm.axes}.
+
+\textbf{What it does:} prints a section header, then calls
+\cd{print\_labeled\_matrix} with row labels
+\cd{["P0","P1","P2","P3","P4"]} and column labels from
+\cd{bm.axes}.
+
+\textbf{Output:}
+\begin{minted}{text}
+  G  - Geometry Matrix (Control Points)
+  ----------------------------------------------------------------
+
+      x  y  z
+      -  -  -
+  P0  0  0  1
+  P1  0  4  1
+  P2  4  0  1
+  P3  4  4  1
+  P4  5  4  1
+\end{minted}
+
+% -------------------------------------------------------
+\needspace{6\baselineskip}
+\subsection{\texttt{print\_M}}
+
+\begin{minted}{julia}
+function print_M(bm::BezierMatrix)
+    section("M  - Basis Matrix (derived from Bernstein)")
+    n = bm.degree
+    println()
+    print_labeled_matrix(bm.M,
+        ["u^$(n-k)" for k in 0:n],
+        ["P$(i-1)" for i in 1:bm.n])
+end
+\end{minted}
+
+\textbf{Input:} reads \cd{bm.M}, \cd{bm.degree}, \cd{bm.n}.
+
+\textbf{What it does:} prints the basis matrix with row
+labels \cd{["u\^{}4","u\^{}3","u\^{}2","u\^{}1","u\^{}0"]}
+(built by the comprehension \cd{["u\^{}\$(n-k)" for k in 0:n]})
+and column labels \cd{["P0",..."P4"]}.
+
+The column labels here are the control point names,
+not the axis names --- because columns of $M$ correspond
+to Bernstein basis polynomials indexed by control point,
+not to spatial axes.
+
+\textbf{Output:}
+\begin{minted}{text}
+  M  - Basis Matrix (derived from Bernstein)
+  ----------------------------------------------------------------
+
+       P0   P1   P2  P3  P4
+       --  ---  ---  --  --
+  u^4   1   -4    6  -4   1
+  u^3  -4   12  -12   4   0
+  u^2   6  -12    6   0   0
+  u^1  -4    4    0   0   0
+  u^0   1    0    0   0   0
+\end{minted}
+
+% -------------------------------------------------------
+\needspace{6\baselineskip}
+\subsection{\texttt{print\_MG}}
+
+\begin{minted}{julia}
+function print_MG(bm::BezierMatrix)
+    section("M * G  - Polynomial Coefficient Matrix")
+    n = bm.degree
+    println()
+    print_labeled_matrix(bm.MG,
+        ["u^$(n-k)" for k in 0:n],
+        bm.axes)
+end
+\end{minted}
+
+\textbf{Input:} reads \cd{bm.MG}, \cd{bm.degree}, \cd{bm.axes}.
+
+\textbf{What it does:} prints the pre-computed $M \cdot G$
+matrix with row labels for powers of $u$ and column labels
+from \cd{bm.axes} (the spatial axes $x$, $y$, $z$).
+
+Note the column labels here switch back to \cd{bm.axes},
+because columns of $M \cdot G$ correspond to axes,
+not to control points.
+
+\textbf{Output:}
+\begin{minted}{text}
+  M * G  - Polynomial Coefficient Matrix
+  ----------------------------------------------------------------
+
+         x    y  z
+       ---  ---  -
+  u^4   13  -28  0
+  u^3  -32   64  0
+  u^2   24  -48  0
+  u^1    0   16  0
+  u^0    0    0  1
+\end{minted}
+
+% -------------------------------------------------------
+\needspace{6\baselineskip}
+\subsection{\texttt{print\_polynomials}}
+
+\begin{minted}{julia}
+function print_polynomials(bm::BezierMatrix)
+    section("Resulting Polynomials")
+    println()
+    for (d, axis) in enumerate(bm.axes)
+        println("  $(axis)(u)  =  $(fmt_poly(bm.MG[:,d], bm.degree))")
+    end
+end
+\end{minted}
+
+\textbf{Input:} reads \cd{bm.MG}, \cd{bm.degree}, \cd{bm.axes}.
+
+\textbf{What it does:} loops over axes.
+For each axis \cd{d}, takes the column slice \cd{bm.MG[:,d]}
+--- a \cd{Vector\{Float64\}} of monomial coefficients from
+highest power down --- and passes it to \cd{fmt\_poly}
+along with \cd{bm.degree} to produce the polynomial string.
+
+\begin{examplebox}
+\textbf{For axis \cd{"x"} (\cd{d=1}):}
+
+\cd{bm.MG[:,1] = [13.0, -32.0, 24.0, 0.0, 0.0]}
+
+\cd{fmt\_poly([13.0, -32.0, 24.0, 0.0, 0.0], 4)}
+$\to$ \cd{"13u\^{}4  - 32u\^{}3  + 24u\^{}2"}
+
+Printed as: \cd{x(u)  =  13u\^{}4  - 32u\^{}3  + 24u\^{}2}
+\end{examplebox}
+
+\textbf{Output:}
+\begin{minted}{text}
+  Resulting Polynomials
+  ----------------------------------------------------------------
+
+  x(u)  =  13u^4  - 32u^3  + 24u^2
+  y(u)  =  -28u^4  + 64u^3  - 48u^2  + 16u
+  z(u)  =  1
+\end{minted}
+
+% -------------------------------------------------------
+\needspace{6\baselineskip}
+\subsection{\texttt{print\_eval\_table}}
+
+\begin{minted}{julia}
+function print_eval_table(bm::BezierMatrix,
+                          u_values::Vector{Float64})
+    section("Evaluation Table  -  P(u) = U * (M * G)")
+    pts  = evaluate_all(bm, u_values)
+    rows = Vector{Vector{String}}()
+    for (i, u) in enumerate(u_values)
+        row = [fmt(u)]
+        for d in 1:bm.dim
+            v = pts[i, d]
+            push!(row, "$(fmt_frac(v))  ($(@sprintf("%.4f", v)))")
+        end
+        push!(rows, row)
+    end
+    println()
+    print_table(rows,
+        vcat(["u"], ["$(ax)(u)" for ax in bm.axes]);
+        style=:outline)
+end
+\end{minted}
+
+\textbf{Input:} reads \cd{bm.dim}, \cd{bm.axes}, and
+the external \cd{u\_values} vector.
+
+\textbf{What it does:} identical logic to
+\cd{print\_step5\_table} in script~03.
+Calls \cd{evaluate\_all} for the batch result, builds
+the rows vector with \cd{fmt\_frac} + \cd{@sprintf} cells,
+and prints with \cd{style=:outline}.
+
+The only difference from script~03 is the section header:
+\cd{section("Evaluation Table ...")} instead of
+\cd{print\_step\_header(5, "Summary ...")}.
+
+\textbf{Output:}
+\begin{minted}{text}
+  Evaluation Table  -  P(u) = U * (M * G)
+  ----------------------------------------------------------------
+
+  +=============================================================+
+  | u       x(u)               y(u)               z(u)        |
+  |=============================================================|
+  | 0       0  (0.0000)        0  (0.0000)   1  (1.0000)      |
+  | 0.2500  269//256  (1.0508) 121//64 (1.8906) 1  (1.0000)   |
+  | 0.5000  45//16  (2.8125)   9//4  (2.2500)   1  (1.0000)   |
+  | 0.7500  1053//256 (4.1133) 201//64 (3.1406) 1  (1.0000)   |
+  | 1       5  (5.0000)        4  (4.0000)       1  (1.0000)  |
+  +=============================================================+
+\end{minted}
+
+% -------------------------------------------------------
+\needspace{6\baselineskip}
+\subsection{\texttt{print\_all}}
+
+\begin{minted}{julia}
+function print_all(bm::BezierMatrix,
+                   u_values::Vector{Float64}, case_num::Int)
+    print_title(bm, case_num)
+    print_G(bm)
+    print_M(bm)
+    print_MG(bm)
+    print_polynomials(bm)
+    print_eval_table(bm, u_values)
+    println()
+    println(ruler())
+    println()
+end
+\end{minted}
+
+\textbf{What it does:} orchestrates the five print functions
+in order, with title and closing ruler.
+
+Compare to script~03's \cd{print\_all}:
+
+\begin{center}
+\begin{tabular}{ll}
+\toprule
+Script~03 & Script~04 \\
+\midrule
+\cd{print\_title} & \cd{print\_title} \\
+\cd{print\_control\_points} & \textit{(replaced by \cd{print\_G})} \\
+\cd{print\_step1\_define} & \textit{(dropped --- no formulation block)} \\
+\cd{print\_step2\_derive\_M} & \cd{print\_M} \\
+\cd{print\_step3\_MG} & \cd{print\_MG} + \cd{print\_polynomials} \\
+\cd{print\_step4\_evaluate} & \textit{(dropped --- no dot product display)} \\
+\cd{print\_step5\_table} & \cd{print\_eval\_table} \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\begin{notebox}
+\textbf{Why split \cd{print\_step3\_MG} into two functions?}
+
+In script~03, \cd{print\_step3\_MG} printed both the
+$M \cdot G$ matrix and the resulting polynomial strings
+in one block under the same step header.
+Script~04 separates them: \cd{print\_MG} prints the matrix,
+\cd{print\_polynomials} prints the strings, each with its
+own section header.
+This gives the polynomials their own visual prominence ---
+they are the practical result the user cares about most.
+\end{notebox}
+
+
+% =============================================================
+\needspace{8\baselineskip}
+\section{Design Principle: One Function, One Thing}
+% =============================================================
+
+\textit{The real lesson of this script is not in any single
+function --- it is in how the functions are organised.}
+
+Script~03 organised its output around the \emph{process}:
+Step~1 defines, Step~2 derives, Step~3 computes, and so on.
+Each step function did multiple things: explained, computed,
+and printed.
+
+Script~04 organises its output around the \emph{data}:
+one function per matrix, one function for the polynomials,
+one function for the table.
+Each print function does exactly one thing: print one object.
+
+This is a principle called \textbf{separation of concerns}.
+Each function has a single, clear responsibility.
+If you want to change how the $M$ matrix is displayed,
+you edit \cd{print\_M} and nothing else.
+If you want to add a new section, you write a new function
+and add one line to \cd{print\_all}.
+
+\begin{examplebox}
+\textbf{Adding a new section would be trivial.}
+Suppose you wanted to print the $U$ vector for $u = 0.5$
+as a new section. You would write:
+
+\begin{minted}{julia}
+function print_U(bm::BezierMatrix, u::Float64)
+    section("U  - Parameter Vector at u = $u")
+    n = bm.degree
+    Uv = [u^(n-k) for k in 0:n]
+    println()
+    # ... format and print Uv
+end
+\end{minted}
+
+Then add \cd{print\_U(bm, 0.5)} to \cd{print\_all}.
+No other function needs to change.
+\end{examplebox}
+
+\vspace{2em}\hrule\vspace{0.5em}
+{\small\textcolor{gray}{%
+Code explanation for \texttt{04-bezier-matrix-straight.jl}
+\textbar{} Directed and curated by E.R.\ Nurwijayadi
+\textbar{} Code and explanations AI-generated}}
+
+\end{document}

@@ -1,0 +1,1622 @@
+% ============================================================
+% 01-bezier-algebra-code-explained.tex
+% Compile with:  pdflatex -shell-escape 01-bezier-algebra-code-explained.tex
+% Run twice for table of contents.
+% ============================================================
+
+\documentclass[12pt, a4paper]{article}
+
+% ---- Encoding & fonts ----------------------------------------
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+
+% ---- Page geometry -------------------------------------------
+\usepackage[
+  top=2.5cm, bottom=2.5cm,
+  left=2.8cm, right=2.8cm
+]{geometry}
+
+% ---- Colours -------------------------------------------------
+\usepackage[dvipsnames]{xcolor}
+\definecolor{codebg}{RGB}{248,248,248}
+\definecolor{rulecolor}{RGB}{180,180,180}
+\definecolor{examplebg}{RGB}{240,248,255}
+\definecolor{examplerule}{RGB}{100,149,237}
+\definecolor{notebg}{RGB}{255,250,230}
+\definecolor{noterule}{RGB}{210,180,50}
+
+% ---- Minted --------------------------------------------------
+\usepackage{minted}
+\setminted[julia]{
+  bgcolor    = codebg,
+  frame      = leftline,
+  framerule  = 1.5pt,
+  rulecolor  = rulecolor,
+  linenos    = false,
+  fontsize   = \small,
+  breaklines = true,
+  tabsize    = 4,
+  style      = friendly,
+}
+\setminted[text]{
+  bgcolor    = codebg,
+  fontsize   = \small,
+  breaklines = true,
+}
+
+% ---- Math ----------------------------------------------------
+\usepackage{amsmath}
+\usepackage{amssymb}
+
+% ---- Boxes ---------------------------------------------------
+\usepackage{mdframed}
+
+\newmdenv[
+  backgroundcolor  = examplebg,
+  linecolor        = examplerule,
+  linewidth        = 1.5pt,
+  leftline         = true, rightline = false,
+  topline          = false, bottomline = false,
+  innerleftmargin  = 10pt, innerrightmargin = 8pt,
+  innertopmargin   = 6pt,  innerbottommargin = 6pt,
+  skipabove = 6pt, skipbelow = 4pt,
+]{examplebox}
+
+\newmdenv[
+  backgroundcolor  = notebg,
+  linecolor        = noterule,
+  linewidth        = 1.5pt,
+  leftline         = true, rightline = false,
+  topline          = false, bottomline = false,
+  innerleftmargin  = 10pt, innerrightmargin = 8pt,
+  innertopmargin   = 6pt,  innerbottommargin = 6pt,
+  skipabove = 6pt, skipbelow = 4pt,
+]{notebox}
+
+% ---- Hyperlinks ----------------------------------------------
+\usepackage[colorlinks=true, linkcolor=black, urlcolor=MidnightBlue]{hyperref}
+
+% ---- Misc ----------------------------------------------------
+\usepackage{booktabs}
+\usepackage{needspace}
+\usepackage{tikz}
+\usetikzlibrary{shapes.geometric, arrows.meta, positioning, fit, backgrounds}
+\usepackage{parskip}
+\usepackage{titlesec}
+\usepackage{fancyhdr}
+\usepackage{datetime2}
+
+% ---- Section formatting --------------------------------------
+\titleformat{\section}
+  {\large\bfseries\color{MidnightBlue}}
+  {\thesection.}{0.6em}{}[\vspace{-4pt}\rule{\linewidth}{0.4pt}]
+\titleformat{\subsection}
+  {\normalsize\bfseries\color{BrickRed}}
+  {\thesubsection.}{0.5em}{}
+\titleformat{\subsubsection}
+  {\normalsize\bfseries}
+  {\thesubsubsection.}{0.5em}{}
+
+% ---- Header / footer -----------------------------------------
+\pagestyle{fancy}
+\fancyhf{}
+\rhead{\textcolor{gray}{\small 01-bezier-algebra-code-explained}}
+\lhead{\textcolor{gray}{\small B\'ezier --- Code Explanation}}
+\cfoot{\thepage}
+\renewcommand{\headrulewidth}{0.3pt}
+
+% ---- Helpers -------------------------------------------------
+\newcommand{\cd}[1]{\texttt{#1}}
+\newcommand{\jl}[1]{\mintinline{julia}{#1}}
+
+% ---- Title ---------------------------------------------------
+\title{%
+  \vspace{1cm}
+  {\LARGE\bfseries B\'ezier Curve --- Algebraic Expansion}\\[0.4em]
+  {\large Code Explanation for Julia Beginners}\\[0.4em]
+  {\normalsize\texttt{01-bezier-algebra.jl}}
+}
+\author{E.R.\ Nurwijayadi}
+\date{\DTMtoday}
+
+\newcommand{\docnote}{\textit{Directed and curated by E.R.\ Nurwijayadi.
+Code and explanations AI-generated.}}
+
+
+% =============================================================
+\begin{document}
+% =============================================================
+
+\maketitle
+\thispagestyle{empty}
+
+\begin{center}\docnote\end{center}
+
+\begin{center}
+\begin{minipage}{0.85\textwidth}
+\small
+This document explains the Julia code in \cd{01-bezier-algebra.jl}
+for readers who are new to Julia.
+It focuses on the parts of the language that may look unfamiliar:
+type annotations, constructors, operator overriding, multiple dispatch,
+and how data flows through the print functions.
+\end{minipage}
+\end{center}
+
+\vspace{1em}\hrule\vspace{1.5em}
+\tableofcontents
+\newpage
+
+
+% =============================================================
+\needspace{8\baselineskip}
+\section{Type Map: How the Pieces Fit Together}
+% =============================================================
+
+\textit{Before diving into individual functions,
+it helps to see the whole picture at once.
+Julia has no classes, but the code has a clear object-like structure:
+two structs, a cluster of free functions that operate on them,
+and one entry point that ties everything together.}
+
+\textit{The diagram below shows every type and function group,
+and the arrows show who calls, owns, or produces whom.}
+
+\bigskip
+
+% TikZ styles
+\tikzset{
+  structbox/.style={
+    rectangle, rounded corners=4pt,
+    draw=MidnightBlue, line width=1.5pt,
+    fill=examplebg,
+    text width=3.0cm, align=center,
+    font=\small\bfseries,
+    inner sep=8pt
+  },
+  funcbox/.style={
+    rectangle, rounded corners=2pt,
+    draw=gray!60, line width=1pt,
+    fill=white,
+    text width=3.2cm, align=center,
+    font=\small,
+    inner sep=7pt
+  },
+  entrybox/.style={
+    rectangle, rounded corners=4pt,
+    draw=BrickRed, line width=1.5pt,
+    fill=notebg,
+    text width=2.4cm, align=center,
+    font=\small\bfseries,
+    inner sep=8pt
+  },
+  myarrow/.style={
+    -Stealth, thick, draw=gray!70
+  },
+  bluearrow/.style={
+    -Stealth, thick, draw=MidnightBlue
+  },
+  redarrow/.style={
+    -Stealth, thick, draw=BrickRed!80
+  },
+  arrowlabel/.style={
+    font=\footnotesize\itshape, fill=white,
+    inner sep=2pt
+  }
+}
+
+\begin{center}
+\begin{tikzpicture}[node distance=1.4cm and 2.6cm]
+
+  % - Structs (top row) -
+  \node[structbox] (poly) {%
+    \texttt{Poly}\\[3pt]
+    \footnotesize\normalfont
+    \texttt{coeffs::Vector\{Float64\}}
+  };
+
+  \node[structbox, right=3.8cm of poly] (bezier) {%
+    \texttt{BezierExpansion}\\[3pt]
+    \footnotesize\normalfont
+    \texttt{basis::Vector\{Poly\}}\\
+    \texttt{polys::Dict\{String,Poly\}}\\
+    \texttt{points, axes, n, degree, dim}
+  };
+
+  % - expand_bernstein (below Poly) -
+  \node[funcbox, below=1.6cm of poly] (expand) {%
+    \texttt{expand\_bernstein}\\[2pt]
+    \footnotesize\normalfont
+    \textit{produces a \texttt{Poly}}\\
+    \textit{from} $(n, i)$
+  };
+
+  % - Poly operations (below expand) -
+  \node[funcbox, below=1.2cm of expand] (polyops) {%
+    \textbf{Poly operations}\\[2pt]
+    \footnotesize\normalfont
+    \texttt{*}\quad\texttt{+}\quad\texttt{(p)(u)}\quad\texttt{degree}
+  };
+
+  % - BezierExpansion constructor (below bezier) -
+  \node[funcbox, below=1.6cm of bezier] (bezierctr) {%
+    \texttt{BezierExpansion()}\\
+    \texttt{evaluate()}\\[2pt]
+    \footnotesize\normalfont
+    \textit{constructor + evaluator}
+  };
+
+  % - Formatting helpers (bottom left) -
+  \node[funcbox, below=1.2cm of polyops] (fmt) {%
+    \textbf{Formatting helpers}\\[2pt]
+    \footnotesize\normalfont
+    \texttt{fmt\_poly}\\
+    \texttt{fmt\_coeff}\\
+    \texttt{fmt\_bernstein\_symbolic}
+  };
+
+  % - Print functions (bottom right) -
+  \node[funcbox, below=1.2cm of bezierctr] (print) {%
+    \textbf{Print functions}\\[2pt]
+    \footnotesize\normalfont
+    \texttt{print\_step1} \ldots \texttt{print\_step5}\\
+    \texttt{print\_all}
+  };
+
+  % - main (far right) -
+  \node[entrybox, right=2.0cm of bezier] (main) {%
+    \texttt{main()}\\[2pt]
+    \footnotesize\normalfont\normalcolor
+    \textit{entry point}
+  };
+
+  % - Arrows -
+
+  % expand_bernstein produces Poly
+  \draw[bluearrow] (expand) -- node[arrowlabel, right]{produces}  (poly);
+
+  % BezierExpansion owns Poly (via fields)
+  \draw[bluearrow] (bezier) -- node[arrowlabel, above]{owns}  (poly);
+
+  % BezierExpansion constructor calls expand_bernstein
+  \draw[myarrow] (bezierctr) -- node[arrowlabel, right]{calls} (expand);
+
+  % BezierExpansion constructor calls Poly ops
+  \draw[myarrow] (bezierctr) -- node[arrowlabel, left, pos=0.4]{uses} (polyops);
+
+  % Poly ops act on Poly
+  \draw[myarrow] (polyops) -- node[arrowlabel, right]{acts on} (poly);
+
+  % BezierExpansion constructor builds BezierExpansion
+  \draw[bluearrow] (bezierctr) -- node[arrowlabel, right]{builds} (bezier);
+
+  % fmt helpers read Poly
+  \draw[myarrow] (fmt) -- node[arrowlabel, right]{reads} (polyops);
+
+  % print functions read BezierExpansion
+  \draw[myarrow] (print) -- node[arrowlabel, right]{reads} (bezierctr);
+
+  % print functions call fmt helpers
+  \draw[myarrow] (print) -- node[arrowlabel, above]{calls} (fmt);
+
+  % main calls BezierExpansion constructor
+  \draw[redarrow] (main) -- node[arrowlabel, above]{calls} (bezier);
+
+  % main calls print_all
+  \draw[redarrow] (main) |- node[arrowlabel, right, pos=0.8]{calls} (print);
+
+\end{tikzpicture}
+\end{center}
+
+\bigskip
+
+\begin{notebox}
+\textbf{Reading the diagram:}
+
+\medskip
+\begin{tabular}{lp{10cm}}
+\toprule
+Arrow colour & Meaning \\
+\midrule
+Blue  & Structural relationship --- one type owns or produces another \\
+Grey  & Function call or data dependency \\
+Red   & Entry point --- \texttt{main()} triggering the whole chain \\
+\bottomrule
+\end{tabular}
+
+\medskip
+The two \textbf{blue boxes} are structs (Julia types).
+Everything else is a free function or function group.
+\texttt{Poly} is the atom --- everything else is built from it
+or depends on it.
+\texttt{BezierExpansion} is the molecule ---
+it assembles \texttt{Poly} objects into a complete curve.
+The print and formatting functions sit on top and never modify
+any data, they only read and display.
+\end{notebox}
+
+% =============================================================
+\needspace{8\baselineskip}
+\section{The \texttt{Poly} Struct and Its Constructor}
+% =============================================================
+
+\needspace{5\baselineskip}
+\subsection{The struct itself}
+
+\begin{minted}{julia}
+struct Poly
+    coeffs::Vector{Float64}
+end
+\end{minted}
+
+This defines a new data type called \cd{Poly}.
+It has one field: \cd{coeffs}, which must be a
+\cd{Vector{Float64}} --- a list of 64-bit floating-point numbers.
+
+To create a \cd{Poly} you would write:
+
+\begin{minted}{julia}
+p = Poly([1.0, -2.0, 1.0])
+\end{minted}
+
+That works fine. But if you try to pass integers:
+
+\begin{minted}{julia}
+p = Poly([1, -2, 1])   # ERROR -- these are Int64, not Float64
+\end{minted}
+
+Julia would refuse because the field type is \cd{Vector{Float64}}
+and \cd{[1, -2, 1]} is \cd{Vector{Int64}}.
+That is why the convenience constructor below exists.
+
+% ---
+\subsection{The convenience constructor}
+
+\begin{minted}{julia}
+Poly(c::Vector{<:Real}) = Poly(Float64.(c))
+\end{minted}
+
+This looks like a function, but it has the same name as the type
+(\cd{Poly}), so Julia treats it as an \textbf{outer constructor} ---
+a factory function that builds a \cd{Poly}.
+
+\textbf{Breaking it down piece by piece:}
+
+\medskip
+\cd{c::Vector\{<:Real\}}
+
+This is a \textbf{type annotation} on the argument \cd{c}.
+It says: ``\cd{c} must be a vector, and the elements can be
+\emph{any subtype of} \cd{Real}.''
+
+\cd{Real} is Julia's abstract type for all real numbers.
+Its subtypes include \cd{Int64}, \cd{Float32}, \cd{Float64},
+\cd{Rational}, and many others.
+The \cd{<:} symbol means ``is a subtype of''.
+So \cd{Vector\{<:Real\}} means ``a vector of any kind of real number.''
+
+\begin{examplebox}
+\textbf{What counts as \cd{Vector\{<:Real\}}?}
+
+\medskip
+\begin{tabular}{ll}
+\toprule
+Value & Accepted? \\
+\midrule
+\cd{[1, 2, 3]}         & Yes --- \cd{Vector\{Int64\}}, and \cd{Int64 <: Real} \\
+\cd{[1.0, 2.0, 3.0]}   & Yes --- \cd{Vector\{Float64\}}, and \cd{Float64 <: Real} \\
+\cd{[1//2, 3//4]}      & Yes --- \cd{Vector\{Rational\}}, and \cd{Rational <: Real} \\
+\cd{["a", "b"]}        & No  --- \cd{String} is not a subtype of \cd{Real} \\
+\bottomrule
+\end{tabular}
+\end{examplebox}
+
+\medskip
+\cd{Float64.(c)}
+
+The dot (\cd{.}) before the parentheses is Julia's
+\textbf{broadcast} syntax.
+It means: ``apply the function \cd{Float64()} to
+\emph{every element} of \cd{c}.''
+
+\begin{examplebox}
+\cd{Float64.([1, -2, 1])}
+$\;\to\;$
+\cd{[1.0, -2.0, 1.0]}
+
+Each integer is individually converted to a \cd{Float64}.
+\end{examplebox}
+
+\textbf{So the full line reads:}
+``If you give me a vector of any real numbers, I will convert
+every element to \cd{Float64} and hand that to the real \cd{Poly}
+constructor.''
+
+This is called a \textbf{sanity constructor} --- it makes the type
+convenient to use without forcing the caller to think about
+numeric types.
+
+\begin{notebox}
+\textbf{Why not just store integers directly?}
+
+The struct uses \cd{Float64} for all arithmetic that follows
+(polynomial evaluation, Horner's method, etc.).
+Mixing integer and float arithmetic in Julia can be surprising,
+so converting everything to \cd{Float64} at construction time
+keeps the rest of the code simple and predictable.
+\end{notebox}
+
+
+\needspace{10\baselineskip}
+\subsection*{Summary: \texttt{Poly} Functions}
+
+\begin{notebox}
+\textbf{All functions associated with \texttt{Poly}:}
+
+\medskip
+\begin{tabular}{lp{3.8cm}p{3.2cm}p{3.5cm}}
+\toprule
+Function & Signature & Returns & Purpose \\
+\midrule
+Constructor &
+  \cd{Poly(c::Vector\{<:Real\})} &
+  \cd{Poly} &
+  Convert any numeric vector to \cd{Poly\{Float64\}} \\[4pt]
+\cd{*} &
+  \cd{(Poly, Real)} or \cd{(Real, Poly)} &
+  \cd{Poly} &
+  Scale every coefficient by a number \\[4pt]
+\cd{+} &
+  \cd{(Poly, Poly)} &
+  \cd{Poly} &
+  Add two polynomials term by term \\[4pt]
+\cd{(p)(u)} &
+  \cd{(Poly, Real)} &
+  \cd{Float64} &
+  Evaluate polynomial at $u$ via Horner \\[4pt]
+\cd{degree} &
+  \cd{(Poly)} &
+  \cd{Int} &
+  Return \cd{length(coeffs) - 1} \\
+\bottomrule
+\end{tabular}
+
+\medskip
+\textit{In an OOP language these would be methods of a \cd{Poly} class.
+In Julia they are standalone functions that happen to take a \cd{Poly}
+as their first (or only) argument.
+Multiple dispatch handles the rest.}
+\end{notebox}
+
+
+% =============================================================
+\needspace{8\baselineskip}
+\section{Operator Overriding}
+% =============================================================
+
+\needspace{5\baselineskip}
+\subsection{What is an operator?}
+
+Operators like \cd{*}, \cd{+}, \cd{-} look special, but in Julia
+they are just ordinary \textbf{functions} with short names.
+When you write \cd{3 * 5}, Julia is actually calling a function
+named \cd{*} with arguments \cd{3} and \cd{5}.
+
+These built-in functions live in a module called \cd{Base},
+which is Julia's standard library.
+So the full name of the multiplication function is \cd{Base.:*}.
+
+The \cd{.:} syntax: the dot accesses something inside a module
+(like \cd{Base.something}), and the colon \cd{:} is needed because
+\cd{*} is a special symbol, not a plain identifier.
+Without the colon, Julia would try to parse \cd{Base.*} as
+invalid syntax.
+
+\needspace{5\baselineskip}
+\subsection{Why override?}
+
+Julia already knows how to multiply two numbers: \cd{3 * 5 = 15}.
+But it has no idea what \cd{Poly([1.0, 2.0]) * 3} should mean ---
+you invented the \cd{Poly} type, so you must teach Julia the rule.
+
+\textbf{Operator overriding} means adding a new method to an
+existing operator function, so it knows what to do with your custom type.
+You are not replacing the original \cd{*} --- you are
+\emph{extending} it with an extra case.
+
+\needspace{5\baselineskip}
+\subsection{The two multiplication methods}
+
+\begin{minted}{julia}
+# Scalar multiplication
+Base.:*(p::Poly, s::Real) = Poly(p.coeffs .* s)
+Base.:*(s::Real, p::Poly) = p * s
+\end{minted}
+
+\needspace{4\baselineskip}
+\subsubsection{First method: \texttt{Poly * number}}
+
+\begin{minted}{julia}
+Base.:*(p::Poly, s::Real) = Poly(p.coeffs .* s)
+\end{minted}
+
+This teaches Julia what to do when the \textbf{left} argument is
+a \cd{Poly} and the \textbf{right} argument is any real number.
+
+\cd{p.coeffs .* s} uses broadcast again: multiply every coefficient
+in the vector by the scalar \cd{s}.
+The result is wrapped in a new \cd{Poly}.
+
+\begin{examplebox}
+\cd{Poly([1.0, -2.0, 1.0]) * 3}
+
+\medskip
+\cd{p.coeffs .* s}
+$= [1.0, -2.0, 1.0] \;.\!\times\; 3$
+$= [3.0, -6.0, 3.0]$
+
+Returns \cd{Poly([3.0, -6.0, 3.0])},
+representing $3 - 6u + 3u^2$.
+\end{examplebox}
+
+\needspace{4\baselineskip}
+\subsubsection{Second method: \texttt{number * Poly}}
+
+\begin{minted}{julia}
+Base.:*(s::Real, p::Poly) = p * s
+\end{minted}
+
+This teaches Julia what to do when the \textbf{left} argument is
+a number and the \textbf{right} argument is a \cd{Poly}.
+
+The body is simply \cd{p * s} --- it flips the order and calls
+the first method.
+No logic is duplicated; we just say ``this is the same as the
+other way around.''
+
+\begin{notebox}
+Without this second method, writing \cd{3 * poly} would fail.
+Julia does not assume that \cd{*} is commutative ---
+it only knows what you explicitly tell it.
+For types where order matters (like matrix multiplication),
+\cd{A * B} and \cd{B * A} can be completely different operations,
+so Julia is right to keep them separate.
+\end{notebox}
+
+% ---
+\subsection{Multiple dispatch --- how Julia chooses which method to call}
+
+When you write \cd{a * b}, Julia looks at the types of
+\textbf{both} \cd{a} and \cd{b} together and finds the method
+whose type signature is the best match.
+This is called \textbf{multiple dispatch}.
+
+\begin{examplebox}
+\textbf{Three calls, three different methods:}
+
+\medskip
+\begin{tabular}{lll}
+\toprule
+Expression & Types & Method chosen \\
+\midrule
+\cd{3 * 5}        & \cd{(Int64, Int64)}   & built-in numeric \cd{*} \\
+\cd{poly * 3}     & \cd{(Poly, Int64)}    & first method above \\
+\cd{3 * poly}     & \cd{(Int64, Poly)}    & second method above \\
+\bottomrule
+\end{tabular}
+\end{examplebox}
+
+\textbf{Compare with Python or Java (single dispatch):}
+In those languages, \cd{a * b} asks only the type of \cd{a}:
+``do \emph{you} know how to multiply yourself by \cd{b}?''
+The type of \cd{b} is handled as a secondary concern inside that method.
+Julia asks about both arguments simultaneously and dispatches
+to the most specific matching method.
+
+This is why the two methods \cd{(Poly, Real)} and \cd{(Real, Poly)}
+are genuinely separate in Julia --- they have different type signatures
+and Julia treats them as distinct choices.
+
+
+% =============================================================
+\needspace{8\baselineskip}
+\section{Polynomial Addition}
+% =============================================================
+
+\begin{minted}{julia}
+function Base.:+(a::Poly, b::Poly)
+    n = max(length(a.coeffs), length(b.coeffs))
+    ca = vcat(a.coeffs, zeros(n - length(a.coeffs)))
+    cb = vcat(b.coeffs, zeros(n - length(b.coeffs)))
+    Poly(ca .+ cb)
+end
+\end{minted}
+
+This overrides \cd{+} for the case where \textbf{both} arguments
+are \cd{Poly} --- another example of multiple dispatch, this time
+with a two-argument signature \cd{(Poly, Poly)}.
+
+\textbf{The zero-padding problem.}
+Two polynomials can have different degrees, meaning their
+\cd{coeffs} vectors have different lengths.
+You cannot add two vectors of different lengths element-by-element.
+
+The fix:
+\begin{enumerate}
+  \item Find the longer length \cd{n}.
+  \item Extend the shorter vector with zeros at the end
+        (\cd{vcat} concatenates two vectors;
+        \cd{zeros(k)} makes a vector of \cd{k} zeros).
+  \item Add element-by-element with \cd{.+} (broadcast addition).
+\end{enumerate}
+
+\begin{examplebox}
+Adding $3 - 6u + 3u^2$ and $1 + 2u$:
+
+\medskip
+\cd{a.coeffs = [3.0, -6.0, 3.0]} (length 3) \\
+\cd{b.coeffs = [1.0,  2.0]}      (length 2)
+
+\medskip
+\cd{n = max(3, 2) = 3}
+
+Pad \cd{b}: \cd{vcat([1.0, 2.0], zeros(1)) = [1.0, 2.0, 0.0]}
+
+Add: \cd{[3.0, -6.0, 3.0] .+ [1.0, 2.0, 0.0] = [4.0, -4.0, 3.0]}
+
+Result: \cd{Poly([4.0, -4.0, 3.0])} $= 4 - 4u + 3u^2$
+\end{examplebox}
+
+
+% =============================================================
+\needspace{8\baselineskip}
+\section{Polynomial Evaluation via Horner's Method}
+% =============================================================
+
+\begin{minted}{julia}
+function (p::Poly)(u::Real)
+    result = 0.0
+    for c in reverse(p.coeffs)
+        result = result * u + c
+    end
+    result
+end
+\end{minted}
+
+\needspace{5\baselineskip}
+\subsection{Callable structs}
+
+The function signature \cd{(p::Poly)(u::Real)} looks unusual.
+It means: ``make a \cd{Poly} object callable like a function.''
+
+After this definition, if \cd{p} is a \cd{Poly}, you can write
+\cd{p(0.5)} and Julia will call this method, passing \cd{p} as the
+struct and \cd{0.5} as \cd{u}.
+This is called a \textbf{functor} --- an object that behaves like a function.
+
+\needspace{5\baselineskip}
+\subsection{Horner's method}
+
+To evaluate $c_0 + c_1 u + c_2 u^2 + c_3 u^3$, the naive approach
+computes each power separately: $u^2$, $u^3$, etc.
+Horner's method rewrites the same polynomial as nested multiplications:
+
+\[
+  c_0 + u\bigl(c_1 + u(c_2 + u \cdot c_3)\bigr)
+\]
+
+This requires only one multiplication and one addition per coefficient,
+working from the \emph{highest} degree down to the constant term.
+The loop iterates over \cd{reverse(p.coeffs)}, which goes from the
+highest-degree coefficient down to the constant.
+
+\begin{examplebox}
+Evaluate \cd{Poly([1.0, 4.0, -4.0])} at $u = 0.5$
+(this is $1 + 4u - 4u^2$):
+
+\medskip
+\cd{reverse([1.0, 4.0, -4.0]) = [-4.0, 4.0, 1.0]}
+
+\medskip
+\begin{tabular}{lll}
+\toprule
+Iteration & \cd{c} & \cd{result = result * u + c} \\
+\midrule
+start  & ---    & \cd{result = 0.0} \\
+1      & \cd{-4.0} & \cd{0.0 * 0.5 + (-4.0) = -4.0} \\
+2      & \cd{4.0}  & \cd{-4.0 * 0.5 + 4.0 = 2.0} \\
+3      & \cd{1.0}  & \cd{2.0 * 0.5 + 1.0 = 2.0} \\
+\bottomrule
+\end{tabular}
+
+\medskip
+Output: \cd{2.0}
+
+Verify: $1 + 4(0.5) - 4(0.5)^2 = 1 + 2 - 1 = 2.0$ \checkmark
+\end{examplebox}
+
+
+
+
+% =============================================================
+\needspace{8\baselineskip}
+\section{The \texttt{expand\_bernstein} Function and Pascal's Triangle}
+% =============================================================
+
+\textit{This is where the real algebra happens.
+Everything before this was setup.
+Now we cook.}
+
+\begin{minted}{julia}
+function expand_bernstein(n::Int, i::Int)::Poly
+    m = n - i
+    one_minus_u = Poly([binomial(m, j) * (-1)^j for j in 0:m])
+    shifted = Poly(vcat(zeros(i), one_minus_u.coeffs))
+    shifted * binomial(n, i)
+end
+\end{minted}
+
+This function takes two integers --- the degree $n$ and the index $i$
+--- and returns a \cd{Poly} representing the Bernstein basis polynomial
+$B(n, i, u) = \binom{n}{i}\,u^i\,(1-u)^{n-i}$ fully expanded
+into monomial form.
+
+The key ingredient is \cd{binomial(n, k)}, Julia's built-in
+function for the binomial coefficient $\binom{n}{k}$.
+Before we see how \cd{expand\_bernstein} uses it,
+let us understand what it actually computes.
+
+% ---
+\subsection{What is \texttt{binomial(n, k)}?}
+
+\cd{binomial(n, k)} computes $\binom{n}{k}$,
+read aloud as ``$n$ choose $k$.''
+It counts the number of ways to choose $k$ items
+from a set of $n$ items, without caring about order.
+
+The formula is:
+\[
+  \binom{n}{k} = \frac{n!}{k!\,(n-k)!}
+\]
+
+\begin{examplebox}
+\textbf{A few values:}
+
+\medskip
+\cd{binomial(4, 0) = 1} \quad (one way to choose nothing) \\
+\cd{binomial(4, 1) = 4} \quad (four ways to choose one item from four) \\
+\cd{binomial(4, 2) = 6} \quad ($\frac{4!}{2!\,2!} = \frac{24}{4} = 6$) \\
+\cd{binomial(4, 3) = 4} \\
+\cd{binomial(4, 4) = 1} \quad (one way to choose everything)
+
+\medskip
+Notice the symmetry: \cd{binomial(4,1) == binomial(4,3)}.
+In general, $\binom{n}{k} = \binom{n}{n-k}$.
+\end{examplebox}
+
+% ---
+\subsection{Pascal's Triangle --- the Cheat Sheet Nobody Printed}
+
+\textit{Your teacher told you to memorise this.
+You didn't. Neither did we.
+But now it actually matters.}
+
+Pascal's triangle is a visual arrangement of all binomial coefficients.
+Each row $n$ contains $\binom{n}{0}, \binom{n}{1}, \ldots, \binom{n}{n}$.
+Each entry is the sum of the two entries directly above it.
+
+\[
+\begin{array}{ccccccccc}
+n=0: & & & & 1 & & & & \\
+n=1: & & & 1 & & 1 & & & \\
+n=2: & & 1 & & 2 & & 1 & & \\
+n=3: & 1 & & 3 & & 3 & & 1 & \\
+n=4: & 1 & & 4 & & 6 & & 4 & 1 \\
+\end{array}
+\]
+
+For this program, row $n=4$ is the one that matters (quartic case).
+Reading left to right: $1, 4, 6, 4, 1$.
+
+These are precisely the prefactors of the five Bernstein
+basis polynomials $B(4,0)$ through $B(4,4)$:
+\[
+  B(4,0) = 1\cdot(1-u)^4, \quad
+  B(4,1) = 4\cdot u(1-u)^3, \quad
+  B(4,2) = 6\cdot u^2(1-u)^2, \quad \ldots
+\]
+
+\begin{notebox}
+\textbf{The rule for building the triangle:}
+any entry equals the sum of the two entries above it.
+For example, $6 = 3 + 3$, and $4 = 1 + 3$.
+This means you never need the factorial formula ---
+just add neighbours.
+Of course, Julia's \cd{binomial()} handles this for you,
+so you don't need to add anything by hand either.
+\end{notebox}
+
+% ---
+\subsection{How \texttt{expand\_bernstein} Uses \texttt{binomial}}
+
+The function expands $B(n,i,u)$ in three steps.
+Let us trace through \cd{expand\_bernstein(4, 2)},
+which should give us $B(4,2,u) = 6u^2(1-u)^2$.
+
+\textbf{Step A --- expand $(1-u)^m$ using the binomial theorem.}
+
+With $n=4$ and $i=2$, we have $m = n - i = 2$.
+
+The binomial theorem says:
+\[
+  (1-u)^m = \sum_{j=0}^{m} \binom{m}{j}(-1)^j\,u^j
+\]
+
+In code:
+\begin{minted}{julia}
+one_minus_u = Poly([binomial(m, j) * (-1)^j for j in 0:m])
+\end{minted}
+
+This is a \textbf{list comprehension}: Julia evaluates
+\cd{binomial(m,j) * (-1)\^{}j} for each \cd{j} from \cd{0} to \cd{m},
+and collects the results into a vector.
+
+\begin{examplebox}
+For $m = 2$, iterating \cd{j = 0, 1, 2}:
+
+\medskip
+\begin{tabular}{llll}
+\toprule
+\cd{j} & \cd{binomial(2,j)} & \cd{(-1)\^{}j} & product \\
+\midrule
+0 & 1 & $+1$ & $+1$ \\
+1 & 2 & $-1$ & $-2$ \\
+2 & 1 & $+1$ & $+1$ \\
+\bottomrule
+\end{tabular}
+
+\medskip
+\cd{one\_minus\_u = Poly([1.0, -2.0, 1.0])} $= 1 - 2u + u^2$
+
+This is $(1-u)^2$. \checkmark
+\end{examplebox}
+
+\textbf{Step B --- multiply by $u^i$ by shifting coefficients.}
+
+Multiplying a polynomial by $u^i$ shifts all its powers up by $i$.
+In coefficient-vector terms, that means prepending $i$ zeros.
+
+\begin{minted}{julia}
+shifted = Poly(vcat(zeros(i), one_minus_u.coeffs))
+\end{minted}
+
+\cd{vcat} concatenates two vectors vertically (end to end).
+
+\begin{examplebox}
+For $i = 2$: prepend 2 zeros to \cd{[1.0, -2.0, 1.0]}:
+\[
+  \cd{vcat([0.0, 0.0], [1.0, -2.0, 1.0])}
+  = \cd{[0.0, 0.0, 1.0, -2.0, 1.0]}
+\]
+This represents $u^2 - 2u^3 + u^4$,
+which is indeed $(1-u)^2$ multiplied by $u^2$. \checkmark
+\end{examplebox}
+
+\textbf{Step C --- multiply by $\binom{n}{i}$.}
+
+\begin{minted}{julia}
+shifted * binomial(n, i)
+\end{minted}
+
+This uses the scalar \cd{*} operator we defined earlier.
+
+\begin{examplebox}
+$\binom{4}{2} = 6$.
+
+\cd{Poly([0.0, 0.0, 1.0, -2.0, 1.0]) * 6}
+$= $ \cd{Poly([0.0, 0.0, 6.0, -12.0, 6.0])}
+
+This is $6u^2 - 12u^3 + 6u^4$.
+
+Which matches the output from the program:
+\begin{minted}{text}
+  B(4,2,u)  =  6u^2(1-u)^2
+           =  6u^2 - 12u^3 + 6u^4
+\end{minted}
+\checkmark
+\end{examplebox}
+
+\begin{notebox}
+\textbf{Why does the alternating sign $(-1)^j$ appear?}
+
+The binomial theorem for $(a + b)^m$ uses $+$ signs throughout.
+But we have $(1 + (-u))^m$, so $b = -u$.
+Each power $b^j = (-u)^j = (-1)^j u^j$.
+That is where the alternating $+1, -1, +1, \ldots$ pattern comes from.
+Without it we would be expanding $(1+u)^m$ instead of $(1-u)^m$,
+and the curve would go somewhere completely wrong.
+
+\textit{The sign matters. It always does.}
+\end{notebox}
+
+% =============================================================
+\needspace{8\baselineskip}
+\section{The \texttt{BezierExpansion} Struct --- A Concrete Map}
+% =============================================================
+
+Before looking at the print functions, it is important to know
+exactly what data lives inside a \cd{BezierExpansion} object.
+Every print function receives one as its argument \cd{exp},
+so understanding the struct means understanding what every
+\cd{exp.field} reference refers to.
+
+\begin{minted}{julia}
+struct BezierExpansion
+    points ::Matrix{Float64}   # control points (n_pts x dim)
+    axes   ::Vector{String}
+    n      ::Int               # number of control points
+    degree ::Int
+    dim    ::Int
+    basis  ::Vector{Poly}      # expanded Bernstein poly per point
+    polys  ::Dict{String,Poly} # final collected poly per axis
+end
+\end{minted}
+
+Below is the struct filled in with the actual values for
+\textbf{Case 1} (quadratic 2-D, 3 control points).
+This is the object that gets passed to every print function.
+
+\medskip
+\begin{center}
+\begin{tabular}{llp{7.5cm}}
+\toprule
+Field & Type & Value for Case 1 \\
+\midrule
+\cd{points} & \cd{Matrix\{Float64\}} &
+  $\begin{bmatrix}1 & 1 \\ 3 & 3 \\ 5 & 1\end{bmatrix}$
+  Row = one point. Column 1 = $x$, column 2 = $y$. \\[10pt]
+\cd{axes} & \cd{Vector\{String\}} &
+  \cd{["x", "y"]} \\[4pt]
+\cd{n} & \cd{Int} &
+  \cd{3} (number of control points) \\[4pt]
+\cd{degree} & \cd{Int} &
+  \cd{2} ($= n - 1$) \\[4pt]
+\cd{dim} & \cd{Int} &
+  \cd{2} (number of axes) \\[4pt]
+\cd{basis} & \cd{Vector\{Poly\}} &
+  \cd{[Poly([1,-2,1]),} $B(2,0)=1-2u+u^2$ \\
+  & & \cd{\ Poly([0,2,-2]),} $B(2,1)=2u-2u^2$ \\
+  & & \cd{\ Poly([0,0,1])]} $B(2,2)=u^2$ \\[4pt]
+\cd{polys} & \cd{Dict\{String,Poly\}} &
+  \cd{"x" => Poly([1,4,0])} $= 1+4u$ \\
+  & & \cd{"y" => Poly([1,4,-4])} $= 1+4u-4u^2$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\begin{notebox}
+\textbf{Two different polynomial collections:}
+
+\cd{basis} contains the \emph{Bernstein} polynomials --- one per
+control point, independent of which curve or axis you are looking at.
+These are the building blocks.
+
+\cd{polys} contains the \emph{final} polynomial per axis,
+after weighting each basis polynomial by its coordinate and summing.
+These are what you actually evaluate to get points on the curve.
+\end{notebox}
+
+
+\needspace{10\baselineskip}
+\subsection*{Summary: \texttt{BezierExpansion} Functions}
+
+\begin{notebox}
+\textbf{All functions associated with \texttt{BezierExpansion}:}
+
+\medskip
+\begin{tabular}{lp{4.5cm}p{2.8cm}p{3.5cm}}
+\toprule
+Function & Signature & Returns & Purpose \\
+\midrule
+Constructor &
+  \cd{BezierExpansion(points, axes)} &
+  \cd{BezierExpansion} &
+  Build the full expansion: compute all basis polys and collect per-axis polynomials \\[4pt]
+\cd{evaluate} &
+  \cd{(BezierExpansion, Real)} &
+  \cd{Vector\{Float64\}} &
+  Evaluate the curve at $u$; returns one coordinate per axis \\
+\bottomrule
+\end{tabular}
+
+\medskip
+\textit{The constructor does all the heavy lifting --- it calls
+\cd{expand\_bernstein} for each control point and accumulates the
+weighted sums.
+\cd{evaluate} is lightweight by design: it just reads the already-built
+\cd{polys} dict and calls Horner on each one.}
+\end{notebox}
+
+
+% =============================================================
+\needspace{8\baselineskip}
+\section{The Print Functions}
+% =============================================================
+
+\needspace{10\baselineskip}
+\subsection*{Summary: Formatting Helper Functions}
+
+\begin{notebox}
+\textbf{Standalone formatting utilities (not tied to any struct):}
+
+\medskip
+\begin{tabular}{lp{4cm}p{2cm}p{4cm}}
+\toprule
+Function & Signature & Returns & Purpose \\
+\midrule
+\cd{ruler} &
+  \cd{(Char)} &
+  \cd{String} &
+  64-character divider line \\[4pt]
+\cd{fmt\_coeff} &
+  \cd{(Float64)} &
+  \cd{String} &
+  Integer if whole, 4 d.p.\ otherwise \\[4pt]
+\cd{fmt\_poly} &
+  \cd{(Poly, String)} &
+  \cd{String} &
+  Readable polynomial string, e.g.\ \cd{"1 + 4u - 4u\^{}2"} \\[4pt]
+\cd{fmt\_bernstein\_symbolic} &
+  \cd{(Int, Int)} &
+  \cd{String} &
+  Symbolic basis string, e.g.\ \cd{"6u\^{}2(1-u)\^{}2"} \\
+\bottomrule
+\end{tabular}
+
+\medskip
+\textit{These functions only produce strings --- they never touch a
+\cd{Poly} struct's internals directly, and they never print anything.
+Separating formatting from printing means you can reuse them anywhere.}
+\end{notebox}
+
+\needspace{5\baselineskip}
+\subsection*{The Five Step Functions}
+
+All five print functions receive the same \cd{exp} struct
+described above, plus sometimes a list of $u$ values.
+None of them return a value --- they only write to the terminal.
+
+% ---
+\subsection{\texttt{print\_step1\_bernstein\_form(exp)}}
+
+\textbf{What it prints:} the curve formula in Bernstein form ---
+the symbolic equation $\mathbf{P}(u) = B(n,0)P_0 + \cdots$
+and the definition of each basis function.
+
+\begin{minted}{julia}
+function print_step1_bernstein_form(exp::BezierExpansion)
+    print_step_header(1, "Bernstein Form")
+    n   = exp.degree
+    dim = join(["$(ax)(u)" for ax in exp.axes], "  ")
+    println("  P(u) =  [$dim]")
+    println()
+    terms = ["B($n,$i)*P$i" for i in 0:exp.n-1]
+    println("  P(u) =  " * join(terms, "  +  "))
+    println()
+    println("  where:")
+    for i in 0:exp.n-1
+        sym = fmt_bernstein_symbolic(n, i)
+        println("    B($n,$i,u)  =  $sym")
+    end
+end
+\end{minted}
+
+\textbf{How it works:}
+
+\begin{enumerate}
+  \item Reads \cd{exp.degree} (e.g.\ \cd{2}) and \cd{exp.axes}
+        (e.g.\ \cd{["x","y"]}).
+  \item Builds the axis label string \cd{"x(u)  y(u)"}
+        by looping over \cd{exp.axes} and joining with spaces.
+  \item Builds the sum string \cd{"B(2,0)*P0  +  B(2,1)*P1  +  B(2,2)*P2"}
+        by looping \cd{i} from \cd{0} to \cd{exp.n-1}.
+  \item Loops again over the same range and calls
+        \cd{fmt\_bernstein\_symbolic(n, i)} to produce the
+        human-readable form like \cd{"2u(1-u)"} for each basis function.
+\end{enumerate}
+
+\begin{examplebox}
+Fields used: \cd{exp.degree}, \cd{exp.axes}, \cd{exp.n}
+
+No actual polynomial data is used here --- this step is purely
+symbolic, showing the formula \emph{before} any numbers are substituted.
+\end{examplebox}
+
+\textbf{Actual output (Case 2):}
+\begin{minted}{text}
+  STEP 1 - Bernstein Form
+  --------------------------------------------------------------
+  P(u) =  [x(u)  y(u)  z(u)]
+
+  P(u) =  B(4,0)*P0  +  B(4,1)*P1  +  B(4,2)*P2
+                     +  B(4,3)*P3  +  B(4,4)*P4
+
+  where:
+    B(4,0,u)  =  (1-u)^4
+    B(4,1,u)  =  4u(1-u)^3
+    B(4,2,u)  =  6u^2(1-u)^2
+    B(4,3,u)  =  4u^3(1-u)
+    B(4,4,u)  =  u^4
+\end{minted}
+
+% ---
+\subsection{\texttt{print\_step2\_substitution(exp)}}
+
+\textbf{What it prints:} the actual coordinate values substituted
+into the Bernstein formula --- one line per axis.
+
+\begin{minted}{julia}
+function print_step2_substitution(exp::BezierExpansion)
+    print_step_header(2, "Substitution of Control Point Coordinates")
+    n = exp.degree
+    for (dim_idx, axis) in enumerate(exp.axes)
+        parts = String[]
+        for i in 1:exp.n
+            coord = exp.points[i, dim_idx]
+            sym   = fmt_bernstein_symbolic(n, i-1)
+            c     = fmt_coeff(coord)
+            push!(parts, "  $(sym)*$(c)")
+        end
+        println("  $(axis)(u) =" * join(parts, "  +  "))
+    end
+end
+\end{minted}
+
+\textbf{How it works:}
+
+The function has a \textbf{double loop}: the outer loop iterates
+over axes (\cd{"x"}, \cd{"y"}), and the inner loop iterates over
+control points (\cd{i = 1} to \cd{exp.n}).
+
+For each combination of axis and control point, it reads
+\cd{exp.points[i, dim\_idx]} --- the coordinate of point $i$
+on the current axis.
+
+\begin{examplebox}
+\textbf{Reading the points matrix for Case 1:}
+
+\medskip
+\cd{exp.points =}
+$\begin{bmatrix}1 & 1 \\ 3 & 3 \\ 5 & 1\end{bmatrix}$
+
+\medskip
+\begin{tabular}{lllll}
+\toprule
+\cd{i} & \cd{dim\_idx} & \cd{axis} & \cd{exp.points[i, dim\_idx]} & Meaning \\
+\midrule
+1 & 1 & \cd{"x"} & \cd{1.0} & $x$-coord of $P_0$ \\
+2 & 1 & \cd{"x"} & \cd{3.0} & $x$-coord of $P_1$ \\
+3 & 1 & \cd{"x"} & \cd{5.0} & $x$-coord of $P_2$ \\
+1 & 2 & \cd{"y"} & \cd{1.0} & $y$-coord of $P_0$ \\
+2 & 2 & \cd{"y"} & \cd{3.0} & $y$-coord of $P_1$ \\
+3 & 2 & \cd{"y"} & \cd{1.0} & $y$-coord of $P_2$ \\
+\bottomrule
+\end{tabular}
+
+\medskip
+Each coordinate is paired with its symbolic basis term
+(e.g.\ \cd{"(1-u)\^{}2*1"}) and all terms for one axis
+are joined into one line.
+\end{examplebox}
+
+Fields used: \cd{exp.degree}, \cd{exp.axes}, \cd{exp.n}, \cd{exp.points}.
+
+\textbf{Actual output (Case 2):}
+\begin{minted}{text}
+  STEP 2 - Substitution of Control Point Coordinates
+  --------------------------------------------------------------
+  x(u) =  (1-u)^4*0  +  4u(1-u)^3*0  +  6u^2(1-u)^2*4
+                     +  4u^3(1-u)*4   +  u^4*5
+  y(u) =  (1-u)^4*0  +  4u(1-u)^3*4  +  6u^2(1-u)^2*0
+                     +  4u^3(1-u)*4   +  u^4*4
+  z(u) =  (1-u)^4*1  +  4u(1-u)^3*1  +  6u^2(1-u)^2*1
+                     +  4u^3(1-u)*1   +  u^4*1
+
+  (Each basis term will now be expanded individually)
+\end{minted}
+
+Notice that the first two $x$ terms are multiplied by 0
+(because $P_0$ and $P_1$ have $x=0$), so they will vanish
+in Step~4.
+All $z$ terms are multiplied by 1 (every point has $z=1$),
+which is why $z(u)$ will collapse to the constant~1.
+
+% ---
+\subsection{\texttt{print\_step3\_expanded\_terms(exp)}}
+
+\textbf{What it prints:} each Bernstein basis polynomial expanded
+into monomial form.
+
+\begin{minted}{julia}
+function print_step3_expanded_terms(exp::BezierExpansion)
+    print_step_header(3, "Expand Each Bernstein Basis Term")
+    n = exp.degree
+    for i in 0:exp.n-1
+        basis = exp.basis[i+1]
+        sym   = fmt_bernstein_symbolic(n, i)
+        ex    = fmt_poly(basis)
+        println("  B($n,$i,u)  =  $sym")
+        println("           =  $ex")
+        println()
+    end
+end
+\end{minted}
+
+\textbf{How it works:}
+
+The loop runs \cd{i} from \cd{0} to \cd{exp.n-1} (0-indexed, matching
+the mathematical notation $B(n, 0)$ through $B(n, n)$).
+
+Inside the loop:
+\begin{itemize}
+  \item \cd{exp.basis[i+1]} fetches the $i$-th expanded basis polynomial.
+        The \cd{+1} is needed because Julia arrays are 1-indexed
+        (the first element is at index 1, not 0).
+  \item \cd{fmt\_bernstein\_symbolic(n, i)} produces the symbolic
+        string like \cd{"2u(1-u)"}.
+  \item \cd{fmt\_poly(basis)} converts the \cd{Poly} coefficients
+        into a readable string like \cd{"2u - 2u\^{}2"}.
+\end{itemize}
+
+\begin{examplebox}
+For Case 1, \cd{exp.basis} contains three \cd{Poly} objects:
+
+\medskip
+\begin{tabular}{lll}
+\toprule
+\cd{i} & \cd{exp.basis[i+1]} & Printed as \\
+\midrule
+0 & \cd{Poly([1.0, -2.0, 1.0])} & \cd{1 - 2u + u\^{}2} \\
+1 & \cd{Poly([0.0,  2.0, -2.0])} & \cd{2u - 2u\^{}2} \\
+2 & \cd{Poly([0.0,  0.0,  1.0])} & \cd{u\^{}2} \\
+\bottomrule
+\end{tabular}
+\end{examplebox}
+
+Fields used: \cd{exp.degree}, \cd{exp.n}, \cd{exp.basis}.
+
+\textbf{Actual output (Case 2):}
+\begin{minted}{text}
+  STEP 3 - Expand Each Bernstein Basis Term
+  --------------------------------------------------------------
+  B(4,0,u)  =  (1-u)^4
+           =  1 - 4u + 6u^2 - 4u^3 + u^4
+
+  B(4,1,u)  =  4u(1-u)^3
+           =  4u - 12u^2 + 12u^3 - 4u^4
+
+  B(4,2,u)  =  6u^2(1-u)^2
+           =  6u^2 - 12u^3 + 6u^4
+
+  B(4,3,u)  =  4u^3(1-u)
+           =  4u^3 - 4u^4
+
+  B(4,4,u)  =  u^4
+           =  u^4
+\end{minted}
+
+Each pair of lines is one iteration of the loop:
+the first line comes from \cd{fmt\_bernstein\_symbolic},
+the second from \cd{fmt\_poly(exp.basis[i+1])}.
+The \cd{exp.basis} vector holds these five \cd{Poly} objects
+(one per control point), already computed by \cd{expand\_bernstein}
+during construction.
+
+% ---
+\subsection{\texttt{print\_step4\_collected(exp)}}
+
+\textbf{What it prints:} for each axis, shows each weighted
+contribution (\cd{basis[i] * coord}), then the final
+collected polynomial.
+
+\begin{minted}{julia}
+function print_step4_collected(exp::BezierExpansion)
+    print_step_header(4, "Collect Terms - Final Monomial Polynomial")
+    n = exp.degree
+    for (dim_idx, axis) in enumerate(exp.axes)
+        println("  $(axis)(u) - weighted contributions:")
+        for i in 1:exp.n
+            coord   = exp.points[i, dim_idx]
+            term    = exp.basis[i] * coord
+            exp_str = fmt_poly(term)
+            c_str   = fmt_coeff(coord)
+            println("    B($n,$(i-1))*$(lpad(c_str,4))  =  $exp_str")
+        end
+        println()
+    end
+    println("  Collected:")
+    for axis in exp.axes
+        poly = exp.polys[axis]
+        println("    $(axis)(u)  =  $(fmt_poly(poly))")
+    end
+end
+\end{minted}
+
+\textbf{How it works:}
+
+Again a double loop: outer over axes, inner over control points.
+
+Inside the inner loop:
+\begin{itemize}
+  \item \cd{exp.points[i, dim\_idx]} reads the coordinate (same as Step 2).
+  \item \cd{exp.basis[i] * coord} multiplies the expanded basis
+        polynomial by that coordinate using the \cd{*} override
+        we defined earlier.
+        This produces a new \cd{Poly} --- the weighted contribution.
+  \item \cd{fmt\_poly(term)} converts that \cd{Poly} to a string
+        for printing.
+  \item \cd{lpad(c\_str, 4)} left-pads the coordinate string to
+        4 characters so the columns line up neatly.
+\end{itemize}
+
+After both loops, a second loop over \cd{exp.axes} prints the
+\emph{final} collected polynomial from \cd{exp.polys[axis]}.
+This is the result that was computed once during construction
+and stored in the struct --- the print function just reads it.
+
+\begin{examplebox}
+\textbf{For the $x$ axis in Case 1:}
+
+\medskip
+\begin{tabular}{llll}
+\toprule
+\cd{i} & coord & \cd{basis[i] * coord} & Printed \\
+\midrule
+1 & 1.0 & \cd{Poly([1,-2,1])*1.0} & \cd{1 - 2u + u\^{}2} \\
+2 & 3.0 & \cd{Poly([0,2,-2])*3.0} & \cd{6u - 6u\^{}2} \\
+3 & 5.0 & \cd{Poly([0,0,1])*5.0}  & \cd{5u\^{}2} \\
+\bottomrule
+\end{tabular}
+
+\medskip
+Then: \cd{exp.polys["x"] = Poly([1.0, 4.0, 0.0])} is printed as \cd{1 + 4u}.
+\end{examplebox}
+
+Fields used: \cd{exp.degree}, \cd{exp.axes}, \cd{exp.n},
+\cd{exp.points}, \cd{exp.basis}, \cd{exp.polys}.
+
+\textbf{Actual output (Case 2):}
+\begin{minted}{text}
+  STEP 4 - Collect Terms - Final Monomial Polynomial
+  --------------------------------------------------------------
+  x(u) - weighted contributions:
+    B(4,0)*   0  =  0
+    B(4,1)*   0  =  0
+    B(4,2)*   4  =  24u^2 - 48u^3 + 24u^4
+    B(4,3)*   4  =  16u^3 - 16u^4
+    B(4,4)*   5  =  5u^4
+
+  y(u) - weighted contributions:
+    B(4,0)*   0  =  0
+    B(4,1)*   4  =  16u - 48u^2 + 48u^3 - 16u^4
+    B(4,2)*   0  =  0
+    B(4,3)*   4  =  16u^3 - 16u^4
+    B(4,4)*   4  =  4u^4
+
+  z(u) - weighted contributions:
+    B(4,0)*   1  =  1 - 4u + 6u^2 - 4u^3 + u^4
+    B(4,1)*   1  =  4u - 12u^2 + 12u^3 - 4u^4
+    B(4,2)*   1  =  6u^2 - 12u^3 + 6u^4
+    B(4,3)*   1  =  4u^3 - 4u^4
+    B(4,4)*   1  =  u^4
+
+  Collected:
+    x(u)  =  24u^2 - 32u^3 + 13u^4
+    y(u)  =  16u - 48u^2 + 64u^3 - 28u^4
+    z(u)  =  1
+\end{minted}
+
+The inner loop produces one row per control point per axis.
+The \cd{lpad(c\_str, 4)} call right-aligns the coordinate
+(e.g.\ \cd{"   0"}, \cd{"   4"}, \cd{"   5"}) so the equals
+signs line up.
+After the inner loop ends, \cd{exp.polys[axis]} is read directly
+for the ``Collected'' lines --- that value was computed once in
+the constructor and is just retrieved here.
+
+% ---
+\subsection{\texttt{print\_step5\_evaluation(exp, u\_values)}}
+
+\textbf{What it prints:} a table of curve points at each $u$ value,
+then a detailed substitution check at the middle $u$.
+
+\begin{minted}{julia}
+function print_step5_evaluation(exp::BezierExpansion,
+                                u_values::Vector{Float64})
+    print_step_header(5, "Evaluation at Given u Values")
+    axes  = exp.axes
+    dim   = length(axes)
+    col_u = 6
+    col_v = 10
+
+    header = "  " * lpad("u", col_u)
+    for ax in axes
+        header *= "  " * lpad("$(ax)(u)", col_v)
+    end
+    println(header)
+    println("  " * "-"^(col_u + (col_v + 2) * dim + 2))
+
+    for u in u_values
+        pt  = evaluate(exp, u)
+        row = "  " * lpad(@sprintf("%.2f", u), col_u)
+        for v in pt
+            row *= "  " * lpad(@sprintf("%.6f", v), col_v)
+        end
+        println(row)
+    end
+    ...
+end
+\end{minted}
+
+\textbf{How it works:}
+
+\textbf{The header row.}
+\cd{lpad("u", 6)} pads the string \cd{"u"} to width 6
+by adding spaces on the left.
+The same is done for each axis label.
+This creates aligned columns.
+
+\textbf{The data rows.}
+For each \cd{u} in \cd{u\_values}, it calls \cd{evaluate(exp, u)},
+which returns a vector with one value per axis
+(e.g.\ \cd{[3.0, 2.0]} for $x$ and $y$).
+Each value is formatted to 6 decimal places with \cd{@sprintf}
+and padded to width 10 with \cd{lpad}.
+
+\textbf{The verification block.}
+After the table, the code picks the middle \cd{u}:
+
+\begin{minted}{julia}
+u_check = u_values[div(length(u_values), 2) + 1]
+\end{minted}
+
+\cd{div} is integer division (no remainder).
+For 5 values: \cd{div(5, 2) = 2}, so \cd{u\_values[3] = 0.50}.
+
+Then for each axis it loops over the polynomial's coefficients
+and prints each term as a separate substitution
+(e.g.\ \cd{"4*0.50\^{}1"}), so you can follow the arithmetic by hand.
+
+\begin{examplebox}
+\textbf{Fields and arguments used:}
+
+\medskip
+\begin{tabular}{ll}
+\toprule
+What & Where it comes from \\
+\midrule
+Axis labels in header & \cd{exp.axes} \\
+Curve values in rows  & \cd{evaluate(exp, u)} $\to$ \cd{exp.polys} \\
+Middle $u$ pick       & \cd{u\_values} (the external argument) \\
+Substitution terms    & \cd{exp.polys[axis].coeffs} looped directly \\
+\bottomrule
+\end{tabular}
+\end{examplebox}
+
+\textbf{Actual output (Case 2):}
+\begin{minted}{text}
+  STEP 5 - Evaluation at Given u Values
+  --------------------------------------------------------------
+       u        x(u)        y(u)        z(u)
+  --------------------------------------------
+    0.00    0.000000    0.000000    1.000000
+    0.25    1.050781    1.890625    1.000000
+    0.50    2.812500    2.250000    1.000000
+    0.75    4.113281    3.140625    1.000000
+    1.00    5.000000    4.000000    1.000000
+
+  Verification at u = 0.50:
+    x(0.50)  =  24u^2 - 32u^3 + 13u^4
+               =  24*0.50^2  +  -32*0.50^3  +  13*0.50^4
+               =  2.812500
+
+    y(0.50)  =  16u - 48u^2 + 64u^3 - 28u^4
+               =  16*0.50^1  +  -48*0.50^2  +  64*0.50^3  +  -28*0.50^4
+               =  2.250000
+
+    z(0.50)  =  1
+               =  1
+               =  1.000000
+\end{minted}
+
+The table is built column by column: \cd{u} is printed first
+(width 6), then each axis value (width 10), all left-padded
+so decimal points align.
+The verification block loops over \cd{poly.coeffs} directly,
+skipping any coefficient whose absolute value is below $10^{-9}$
+(same threshold used in \cd{fmt\_poly}).
+For $z(u) = 1$ there is only a constant term, so the
+substitution line just shows \cd{"= 1"} with no powers of $u$.
+
+
+
+\needspace{12\baselineskip}
+\subsection*{Summary: Print Functions}
+
+\begin{notebox}
+\textbf{All print functions (none return a value --- output only):}
+
+\medskip
+\begin{tabular}{lp{4.8cm}p{5cm}}
+\toprule
+Function & Signature & Purpose \\
+\midrule
+\cd{print\_step\_header} &
+  \cd{(Int, String)} &
+  Print numbered step heading with dashed rule \\[4pt]
+\cd{print\_title} &
+  \cd{(BezierExpansion, Int)} &
+  Print the title banner with degree and dimension info \\[4pt]
+\cd{print\_control\_points} &
+  \cd{(BezierExpansion)} &
+  List all control points with coordinates \\[4pt]
+\cd{print\_step1\_bernstein\_form} &
+  \cd{(BezierExpansion)} &
+  Show symbolic Bernstein formula and basis definitions \\[4pt]
+\cd{print\_step2\_substitution} &
+  \cd{(BezierExpansion)} &
+  Show coordinates substituted into basis terms \\[4pt]
+\cd{print\_step3\_expanded\_terms} &
+  \cd{(BezierExpansion)} &
+  Show each basis polynomial in monomial form \\[4pt]
+\cd{print\_step4\_collected} &
+  \cd{(BezierExpansion)} &
+  Show weighted contributions and final collected polynomial \\[4pt]
+\cd{print\_step5\_evaluation} &
+  \cd{(BezierExpansion, Vector\{Float64\})} &
+  Print evaluation table and mid-point verification \\[4pt]
+\cd{print\_all} &
+  \cd{(BezierExpansion, Vector\{Float64\}, Int)} &
+  Orchestrate steps 1--5 in order \\
+\bottomrule
+\end{tabular}
+
+\medskip
+\textit{\cd{print\_all} is the conductor.
+It calls everything in sequence and adds nothing of its own.
+If you ever want to print just one step in isolation ---
+say, only the evaluation table --- you can call \cd{print\_step5}
+directly. The steps are independent.}
+\end{notebox}
+
+
+% =============================================================
+\needspace{8\baselineskip}
+\section{Summary: How Data Flows Through the Program}
+% =============================================================
+
+\begin{center}
+\begin{tabular}{rp{4cm}p{6cm}}
+\toprule
+Step & Function & Data used from \cd{exp} \\
+\midrule
+1 & \cd{print\_step1} &
+  \cd{degree}, \cd{axes}, \cd{n} --- symbolic only, no numbers \\
+2 & \cd{print\_step2} &
+  \cd{degree}, \cd{axes}, \cd{n}, \cd{points} --- coordinates substituted \\
+3 & \cd{print\_step3} &
+  \cd{degree}, \cd{n}, \cd{basis} --- expanded basis polys printed \\
+4 & \cd{print\_step4} &
+  \cd{degree}, \cd{axes}, \cd{n}, \cd{points}, \cd{basis}, \cd{polys} ---
+  weighted terms and final result \\
+5 & \cd{print\_step5} &
+  \cd{axes}, \cd{polys} --- final polys evaluated at each $u$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\vspace{2em}\hrule\vspace{0.5em}
+{\small\textcolor{gray}{Code explanation for \texttt{01-bezier-algebra.jl} --- output examples use Case~2 \textbar{} Prepared by E.R.\ Nurwijayadi \textbar{} Prompt-driven, AI-composed}}
+
+\end{document}

@@ -1,0 +1,860 @@
+% ============================================================
+% 05-bezier-matrix-sympy-text-code-explained.tex
+% Compile with:  pdflatex -shell-escape 05-bezier-matrix-sympy-text-code-explained.tex
+% Run twice for table of contents.
+% ============================================================
+
+\documentclass[12pt, a4paper]{article}
+
+% ---- Encoding & fonts ----------------------------------------
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+
+% ---- Page geometry -------------------------------------------
+\usepackage[
+  top=2.5cm, bottom=2.5cm,
+  left=2.8cm, right=2.8cm
+]{geometry}
+
+% ---- Colours -------------------------------------------------
+\usepackage[dvipsnames]{xcolor}
+\definecolor{codebg}{RGB}{248,248,248}
+\definecolor{rulecolor}{RGB}{180,180,180}
+\definecolor{examplebg}{RGB}{240,248,255}
+\definecolor{examplerule}{RGB}{100,149,237}
+\definecolor{notebg}{RGB}{255,250,230}
+\definecolor{noterule}{RGB}{210,180,50}
+\definecolor{samebg}{RGB}{245,245,245}
+\definecolor{samerule}{RGB}{160,160,160}
+
+% ---- Minted --------------------------------------------------
+\usepackage{minted}
+\setminted[julia]{
+  bgcolor    = codebg,
+  frame      = leftline,
+  framerule  = 1.5pt,
+  rulecolor  = rulecolor,
+  linenos    = false,
+  fontsize   = \small,
+  breaklines = true,
+  tabsize    = 4,
+  style      = friendly,
+}
+\setminted[text]{
+  bgcolor    = codebg,
+  fontsize   = \small,
+  breaklines = true,
+}
+
+% ---- Math ----------------------------------------------------
+\usepackage{amsmath}
+\usepackage{amssymb}
+
+% ---- TikZ ----------------------------------------------------
+\usepackage{tikz}
+\usetikzlibrary{shapes.geometric, arrows.meta, positioning, backgrounds}
+
+% ---- Boxes ---------------------------------------------------
+\usepackage{mdframed}
+
+\newmdenv[
+  backgroundcolor  = examplebg,
+  linecolor        = examplerule, linewidth=1.5pt,
+  leftline=true, rightline=false, topline=false, bottomline=false,
+  innerleftmargin=10pt, innerrightmargin=8pt,
+  innertopmargin=6pt, innerbottommargin=6pt,
+  skipabove=6pt, skipbelow=4pt,
+]{examplebox}
+
+\newmdenv[
+  backgroundcolor  = notebg,
+  linecolor        = noterule, linewidth=1.5pt,
+  leftline=true, rightline=false, topline=false, bottomline=false,
+  innerleftmargin=10pt, innerrightmargin=8pt,
+  innertopmargin=6pt, innerbottommargin=6pt,
+  skipabove=6pt, skipbelow=4pt,
+]{notebox}
+
+\newmdenv[
+  backgroundcolor  = samebg,
+  linecolor        = samerule, linewidth=1.5pt,
+  leftline=true, rightline=false, topline=false, bottomline=false,
+  innerleftmargin=10pt, innerrightmargin=8pt,
+  innertopmargin=6pt, innerbottommargin=6pt,
+  skipabove=6pt, skipbelow=4pt,
+]{samebox}
+
+% ---- Hyperlinks ----------------------------------------------
+\usepackage[colorlinks=true, linkcolor=black, urlcolor=MidnightBlue]{hyperref}
+
+% ---- Misc ----------------------------------------------------
+\usepackage{booktabs}
+\usepackage{needspace}
+\usepackage{parskip}
+\usepackage{titlesec}
+\usepackage{fancyhdr}
+\usepackage{datetime2}
+
+% ---- Section formatting --------------------------------------
+\titleformat{\section}
+  {\large\bfseries\color{MidnightBlue}}
+  {\thesection.}{0.6em}{}[\vspace{-4pt}\rule{\linewidth}{0.4pt}]
+\titleformat{\subsection}
+  {\normalsize\bfseries\color{BrickRed}}
+  {\thesubsection.}{0.5em}{}
+\titleformat{\subsubsection}
+  {\normalsize\bfseries}
+  {\thesubsubsection.}{0.5em}{}
+
+% ---- Header / footer -----------------------------------------
+\pagestyle{fancy}
+\fancyhf{}
+\rhead{\textcolor{gray}{\small 05-bezier-matrix-sympy-text-code-explained}}
+\lhead{\textcolor{gray}{\small B\'ezier Matrix Symbolic --- Code Explanation}}
+\cfoot{\thepage}
+\renewcommand{\headrulewidth}{0.3pt}
+
+% ---- Helpers -------------------------------------------------
+\newcommand{\cd}[1]{\texttt{#1}}
+
+% ---- Title ---------------------------------------------------
+\title{%
+  \vspace{1cm}
+  {\LARGE\bfseries B\'ezier Curve --- Matrix Method (Symbolic)}\\[0.4em]
+  {\large $P(u) = U \cdot M \cdot G$ \quad via Symbolics.jl}\\[0.4em]
+  {\large Code Explanation for Julia Beginners}\\[0.4em]
+  {\normalsize\texttt{05-bezier-matrix-sympy-text.jl}}
+}
+\author{E.R.\ Nurwijayadi}
+\date{\DTMtoday}
+
+
+% =============================================================
+\begin{document}
+% =============================================================
+
+\maketitle
+\thispagestyle{empty}
+
+\begin{center}
+\textit{Directed and curated by E.R.\ Nurwijayadi.
+Code and explanations AI-generated.}
+\end{center}
+
+\begin{center}
+\begin{minipage}{0.85\textwidth}
+\small
+This document explains the Julia code in
+\cd{05-bezier-matrix-sympy-text.jl} for readers new to Julia.
+Script~05 is a deliberate hybrid: it takes the straight
+output structure of script~04 and substitutes exact
+\cd{Rational\{Int\}} arithmetic throughout, using
+Symbolics.jl only for polynomial formatting.
+This document focuses on what changed relative to
+scripts~02 and~04, which are its two parents.
+Shared components are listed by reference.
+\end{minipage}
+\end{center}
+
+\vspace{1em}\hrule\vspace{1.5em}
+\tableofcontents
+\newpage
+
+
+% =============================================================
+\needspace{8\baselineskip}
+\section{Type Map: How the Pieces Fit Together}
+% =============================================================
+
+\textit{Script~05 combines the exact arithmetic engine of
+script~02 with the straight print structure of script~04.
+In the diagram, grey boxes are inherited unchanged,
+white boxes are new or modified.}
+
+\bigskip
+
+\tikzset{
+  structbox/.style={
+    rectangle, rounded corners=4pt,
+    draw=MidnightBlue, line width=1.5pt,
+    fill=examplebg,
+    text width=3.6cm, align=center,
+    font=\small\bfseries, inner sep=8pt
+  },
+  funcbox/.style={
+    rectangle, rounded corners=2pt,
+    draw=gray!60, line width=1pt,
+    fill=white,
+    text width=3.6cm, align=center,
+    font=\small, inner sep=7pt
+  },
+  samefunc/.style={
+    rectangle, rounded corners=2pt,
+    draw=samerule, line width=1pt,
+    fill=samebg,
+    text width=3.6cm, align=center,
+    font=\small, inner sep=7pt
+  },
+  casbox/.style={
+    rectangle, rounded corners=4pt,
+    draw=BrickRed!60, line width=1.5pt,
+    fill=notebg,
+    text width=3.6cm, align=center,
+    font=\small\bfseries, inner sep=8pt
+  },
+  entrybox/.style={
+    rectangle, rounded corners=4pt,
+    draw=BrickRed, line width=1.5pt,
+    fill=notebg,
+    text width=2.4cm, align=center,
+    font=\small\bfseries, inner sep=8pt
+  },
+  myarrow/.style={-Stealth, thick, draw=gray!70},
+  bluearrow/.style={-Stealth, thick, draw=MidnightBlue},
+  redarrow/.style={-Stealth, thick, draw=BrickRed!80},
+  arrowlabel/.style={font=\footnotesize\itshape, fill=white, inner sep=2pt}
+}
+
+\begin{center}
+\begin{tikzpicture}[node distance=1.4cm and 2.8cm]
+
+  % -- Symbolics.jl (external) ------------------------------
+  \node[casbox] (symjl) {%
+    \texttt{Symbolics.jl}\\[3pt]
+    \footnotesize\normalfont
+    \texttt{@variables u}\\
+    \texttt{expand()}, \texttt{string()}\\
+    \textit{for fmt\_poly only}
+  };
+
+  % -- BezierMatrix struct (modified) -----------------------
+  \node[structbox, right=3.2cm of symjl] (bm) {%
+    \texttt{BezierMatrix}\\[3pt]
+    \footnotesize\normalfont
+    \texttt{G, M, MG}\\
+    \texttt{::Matrix\{Rational\{Int\}\}}\\
+    \texttt{axes, n, degree, dim}
+  };
+
+  % -- derive_M + evaluate_all (modified type) --------------
+  \node[funcbox, below left=1.6cm and 0.3cm of bm] (core) {%
+    \texttt{derive\_M()} \textbf{[mod]}\\
+    \texttt{evaluate\_all()} \textbf{[mod]}\\[2pt]
+    \footnotesize\normalfont
+    \textit{same logic, type changed}\\
+    \textit{to \texttt{Rational\{Int\}}}
+  };
+
+  % -- fmt_rat + fmt_poly (new/from script 02) --------------
+  \node[funcbox, below right=1.6cm and 0.3cm of bm] (fmt) {%
+    \texttt{fmt\_rat()} \textbf{[from 02]}\\
+    \texttt{fmt\_poly()} \textbf{[new]}\\[2pt]
+    \footnotesize\normalfont
+    \textit{rational formatter}\\
+    \textit{symbolic poly builder}
+  };
+
+  % -- table printers (modified type) -----------------------
+  \node[samefunc, below=1.3cm of core] (tbl) {%
+    \textbf{Table printers}\\[2pt]
+    \footnotesize\normalfont
+    \texttt{print\_table} (unchanged)\\
+    \texttt{print\_labeled\_matrix}\\
+    \textit{(type: Rational\{Int\})}
+  };
+
+  % -- section() (from script 04) ---------------------------
+  \node[samefunc, below=1.3cm of fmt] (sec) {%
+    \texttt{section()} \textbf{[from 04]}\\[2pt]
+    \footnotesize\normalfont
+    \textit{unchanged from script~04}
+  };
+
+  % -- print functions (from script 04, minor mods) ---------
+  \node[funcbox, below=1.3cm of tbl, xshift=2.2cm] (print) {%
+    \textbf{Print functions}\\[2pt]
+    \footnotesize\normalfont
+    \texttt{print\_G/M/MG} (type mod)\\
+    \texttt{print\_polynomials} (mod)\\
+    \texttt{print\_eval\_table} (mod)\\
+    \texttt{print\_all} (unchanged)
+  };
+
+  % -- main (unchanged) -------------------------------------
+  \node[entrybox, right=2.0cm of bm] (main) {%
+    \texttt{main()}\\[2pt]
+    \footnotesize\normalfont\normalcolor
+    \textit{entry point}\\
+    \textit{unchanged}
+  };
+
+  % -- Arrows -----------------------------------------------
+  \draw[myarrow]   (symjl)  -- node[arrowlabel, above]{used by} (fmt);
+  \draw[bluearrow] (core)   -- node[arrowlabel, left]{builds} (bm);
+  \draw[myarrow]   (bm)     -- node[arrowlabel, above left]{calls} (core);
+  \draw[myarrow]   (print)  -- node[arrowlabel, left]{calls}  (tbl);
+  \draw[myarrow]   (print)  -- node[arrowlabel, right]{calls} (sec);
+  \draw[myarrow]   (print)  -- node[arrowlabel, above]{calls} (fmt);
+  \draw[myarrow]   (print)  -- node[arrowlabel, above]{reads} (bm);
+  \draw[myarrow]   (print)  |- node[arrowlabel, right,pos=0.8]{calls} (core);
+  \draw[redarrow]  (main)   -- node[arrowlabel, above]{calls} (bm);
+  \draw[redarrow]  (main)   |- node[arrowlabel, right,pos=0.75]{calls} (print);
+
+\end{tikzpicture}
+\end{center}
+
+\bigskip
+\begin{notebox}
+\textbf{Script~05 is a directed combination of two parents.}
+
+From \textbf{script~04}: the straight print structure ---
+\cd{section()}, five focused print functions, \cd{print\_all}.
+
+From \textbf{script~02}: exact rational arithmetic ---
+\cd{Rational\{Int\}} types, \cd{fmt\_rat}, Symbolics.jl for
+polynomial display.
+
+The only genuinely new code is \cd{fmt\_poly}, which bridges
+the two parents: it takes a \cd{Rational\{Int\}} column from
+\cd{MG} and turns it into a Symbolics.jl symbolic expression.
+\end{notebox}
+
+
+% =============================================================
+\needspace{8\baselineskip}
+\section{What Is Shared (by Reference)}
+% =============================================================
+
+\begin{samebox}
+\textbf{From script~04 --- identical or structurally identical:}
+
+\medskip
+\begin{tabular}{lp{8.5cm}}
+\toprule
+Component & Notes \\
+\midrule
+\cd{section()} & Identical. \\
+\cd{print\_table} & Identical. \\
+\cd{print\_all} signature & Takes \cd{Vector\{Rational\{Int\}\}}
+  instead of \cd{Vector\{Float64\}} --- otherwise identical. \\
+\cd{ruler} & Identical. \\
+\cd{main} & Identical logic. \\
+\bottomrule
+\end{tabular}
+
+\medskip
+\textbf{From script~02 --- same concept, same name:}
+
+\medskip
+\begin{tabular}{lp{8.5cm}}
+\toprule
+Component & Notes \\
+\midrule
+\cd{@variables u} & Identical declaration. \\
+\cd{Rational\{Int\}} control points & Same typed matrix literal. \\
+\cd{Rational\{Int\}} u\_values & Same exact fraction list. \\
+\cd{fmt\_rat} & Same two-method dispatch function
+  (named \cd{fmt\_rational} in script~02). \\
+\bottomrule
+\end{tabular}
+\end{samebox}
+
+
+% =============================================================
+\needspace{8\baselineskip}
+\section{The \texttt{BezierMatrix} Struct --- Type Change}
+% =============================================================
+
+\begin{minted}{julia}
+struct BezierMatrix
+    G      ::Matrix{Rational{Int}}
+    axes   ::Vector{String}
+    n      ::Int
+    degree ::Int
+    dim    ::Int
+    M      ::Matrix{Rational{Int}}
+    MG     ::Matrix{Rational{Int}}
+end
+\end{minted}
+
+The struct is identical to script~04 except that the three
+matrix fields changed from \cd{Matrix\{Float64\}} to
+\cd{Matrix\{Rational\{Int\}\}}.
+
+This single type change propagates everywhere:
+all arithmetic on these matrices now uses exact fraction
+arithmetic automatically, because Julia dispatches
+\cd{+}, \cd{*}, etc.\ based on the element type.
+
+\begin{notebox}
+\textbf{Why does changing the type of \cd{G} matter?}
+
+The constructor computes \cd{MG = M * points}.
+If \cd{points} is \cd{Matrix\{Float64\}}, the result is
+\cd{Matrix\{Float64\}} --- floating-point multiplication.
+If \cd{points} is \cd{Matrix\{Rational\{Int\}\}}, the result
+is \cd{Matrix\{Rational\{Int\}\}} --- exact rational multiplication.
+Julia infers the output type from the input types automatically.
+No code change in the constructor is needed beyond the type
+annotation on the struct field.
+\end{notebox}
+
+
+% =============================================================
+\needspace{8\baselineskip}
+\section{\texttt{derive\_M} and \texttt{evaluate\_all} --- Type Change Only}
+% =============================================================
+
+\needspace{5\baselineskip}
+\subsection{\texttt{derive\_M}}
+
+\begin{minted}{julia}
+function derive_M(deg::Int)::Matrix{Rational{Int}}
+    n = deg
+    M = zeros(Rational{Int}, n+1, n+1)
+    for i in 0:n
+        m = n - i
+        for j in 0:m
+            k = i + j
+            M[n-k+1, i+1] = binomial(n,i) * binomial(m,j) * (-1)^j
+        end
+    end
+    return M
+end
+\end{minted}
+
+Two changes from script~04:
+
+\begin{enumerate}
+  \item Return type annotation: \cd{::Matrix\{Rational\{Int\}\}}
+        instead of \cd{::Matrix\{Float64\}}.
+  \item Initialisation: \cd{zeros(Rational\{Int\}, n+1, n+1)}
+        instead of \cd{zeros(Float64, n+1, n+1)}.
+\end{enumerate}
+
+\cd{zeros(Rational\{Int\}, n+1, n+1)} creates a matrix
+filled with \cd{0//1} (the rational zero).
+The loop body is identical: \cd{binomial(n,i)},
+\cd{binomial(m,j)}, and \cd{(-1)\^{}j} all return
+plain integers, and assigning an integer to a
+\cd{Rational\{Int\}} slot auto-promotes it to
+\cd{binomial\_result // 1}.
+
+\begin{examplebox}
+\textbf{For $n=4$, $i=0$, $j=0$:}
+
+\cd{binomial(4,0) * binomial(4,0) * (-1)\^{}0 = 1 * 1 * 1 = 1}
+
+Assigned to \cd{M[5, 1]} (row \cd{n-k+1 = 5}, col \cd{i+1 = 1}).
+
+Stored as \cd{1//1} in \cd{Matrix\{Rational\{Int\}\}}.
+
+Displayed as \cd{1} by \cd{fmt\_rat} (denominator is 1).
+\end{examplebox}
+
+\needspace{5\baselineskip}
+\subsection{\texttt{evaluate\_all}}
+
+\begin{minted}{julia}
+function evaluate_all(bm::BezierMatrix,
+    u_values::Vector{Rational{Int}})::Matrix{Rational{Int}}
+    n    = bm.degree
+    Uall = [u_val^(n-k) for u_val in u_values, k in 0:n]
+    Uall * bm.MG
+end
+\end{minted}
+
+Three type changes from script~04:
+\begin{itemize}
+  \item Argument: \cd{u\_values::Vector\{Rational\{Int\}\}}
+  \item Return annotation: \cd{::Matrix\{Rational\{Int\}\}}
+  \item The local variable \cd{u} from script~04 is renamed
+        \cd{u\_val} to avoid shadowing the Symbolics.jl
+        symbolic variable \cd{u} declared at the top of
+        the file with \cd{@variables u}.
+\end{itemize}
+
+\begin{notebox}
+\textbf{Why rename \cd{u} to \cd{u\_val}?}
+
+At the top of the file, \cd{@variables u} creates a
+symbolic object named \cd{u}.
+If the loop variable in the comprehension were also named
+\cd{u}, it would \emph{shadow} the symbolic \cd{u} inside
+the comprehension body --- meaning \cd{u\^{}(n-k)} would
+use the rational loop value, not the symbolic variable.
+In this function that would actually be correct,
+but it would be confusing and fragile.
+Renaming to \cd{u\_val} keeps the two \cd{u}s
+unambiguously separate throughout the file.
+\end{notebox}
+
+
+% =============================================================
+\needspace{8\baselineskip}
+\section{\texttt{fmt\_rat} --- The Rational Formatter}
+% =============================================================
+
+\begin{minted}{julia}
+fmt_rat(r::Rational{Int}) =
+    isone(denominator(r)) ? string(numerator(r)) : string(r)
+fmt_rat(n::Integer) = string(n)
+\end{minted}
+
+This is identical in purpose and structure to
+\cd{fmt\_rational} from script~02, renamed for brevity.
+
+The two-method multiple dispatch covers:
+\begin{itemize}
+  \item A \cd{Rational\{Int\}} value: print as \cd{"5"} if
+        denominator is 1, else as \cd{"269//256"}.
+  \item A plain \cd{Integer}: just convert to string.
+\end{itemize}
+
+It is used in three places:
+\begin{enumerate}
+  \item \cd{print\_labeled\_matrix} --- to format every cell
+        of $G$, $M$, and $M \cdot G$.
+  \item \cd{print\_eval\_table} --- to format the $u$ value
+        column and the exact result columns.
+\end{enumerate}
+
+
+% =============================================================
+\needspace{8\baselineskip}
+\section{\texttt{fmt\_poly} --- Building a Symbolic Expression}
+% =============================================================
+
+\textit{This is the only genuinely new function in the script.
+It is short but dense --- four lines that do something
+quite different from any formatting function in the
+previous scripts.}
+
+\begin{minted}{julia}
+function fmt_poly(mg_col::Vector{Rational{Int}}, deg::Int)::String
+    expr = sum(
+        mg_col[k+1] * u^(deg-k)
+        for k in 0:deg
+        if mg_col[k+1] != 0
+    ; init = 0*u^0)
+    string(expand(expr))
+end
+\end{minted}
+
+\needspace{5\baselineskip}
+\subsection{What it does}
+
+Instead of building a string directly from the coefficient
+vector (as script~04's \cd{fmt\_poly} did), this function:
+\begin{enumerate}
+  \item Builds a \textbf{Symbolics.jl symbolic expression}
+        by summing terms of the form
+        \cd{coefficient * u\^{}power}.
+  \item Calls \cd{expand()} to canonicalise the expression.
+  \item Calls \cd{string()} to convert the Symbolics
+        expression to its printed representation.
+\end{enumerate}
+
+\needspace{5\baselineskip}
+\subsection{The generator sum with \texttt{if} filter}
+
+\begin{minted}{julia}
+sum(
+    mg_col[k+1] * u^(deg-k)
+    for k in 0:deg
+    if mg_col[k+1] != 0
+; init = 0*u^0)
+\end{minted}
+
+This is \cd{sum} applied to a \textbf{generator expression}
+with an inline \cd{if} filter.
+It is equivalent to:
+
+\begin{minted}{julia}
+total = 0*u^0          # initial value
+for k in 0:deg
+    if mg_col[k+1] != 0
+        total += mg_col[k+1] * u^(deg-k)
+    end
+end
+\end{minted}
+
+The generator computes \cd{mg\_col[k+1] * u\^{}(deg-k)}
+for each \cd{k} where the coefficient is non-zero,
+and \cd{sum} accumulates them.
+
+\begin{examplebox}
+\textbf{For the $x$ column: \cd{mg\_col = [13//1, -32//1, 24//1, 0//1, 0//1]},
+\cd{deg = 4}:}
+
+\medskip
+\begin{tabular}{lllll}
+\toprule
+\cd{k} & \cd{mg\_col[k+1]} & non-zero? & term built \\
+\midrule
+0 & \cd{13//1}  & yes & \cd{13//1 * u\^{}4} \\
+1 & \cd{-32//1} & yes & \cd{-32//1 * u\^{}3} \\
+2 & \cd{24//1}  & yes & \cd{24//1 * u\^{}2} \\
+3 & \cd{0//1}   & no  & skipped \\
+4 & \cd{0//1}   & no  & skipped \\
+\bottomrule
+\end{tabular}
+
+\medskip
+\cd{expr} = symbolic expression for
+$\frac{13}{1}u^4 + \frac{-32}{1}u^3 + \frac{24}{1}u^2$
+
+After \cd{expand()}: same expression, collected and ordered.
+
+\cd{string(expand(expr))}:
+\cd{"(24//1)*(u\^{}2) - (32//1)*(u\^{}3) + (13//1)*(u\^{}4)"}
+
+Note the term ordering: Symbolics.jl orders from lowest to
+highest power, which is why $u^2$ appears before $u^4$.
+\end{examplebox}
+
+\needspace{5\baselineskip}
+\subsection{The \texttt{init} keyword argument}
+
+\begin{minted}{julia}
+sum(...; init = 0*u^0)
+\end{minted}
+
+\cd{init} provides the \textbf{starting value} for the
+accumulation.
+Without it, if \emph{all} coefficients are zero (e.g.\ for
+a zero polynomial), \cd{sum} would have nothing to add and
+would throw an error.
+
+\cd{0*u\^{}0} creates the Symbolics expression $0 \cdot u^0$,
+which simplifies to $0$ --- a symbolic zero.
+Using a symbolic zero rather than a plain \cd{0} ensures
+the result of \cd{sum} is always a Symbolics expression,
+even when all terms are filtered out.
+
+\begin{examplebox}
+\textbf{For the $z$ column: \cd{mg\_col = [0//1, 0//1, 0//1, 0//1, 1//1]}:}
+
+\medskip
+Only \cd{k=4} passes the filter:
+\cd{1//1 * u\^{}0 = 1//1 * 1 = 1//1}
+
+\cd{sum} accumulates: \cd{0*u\^{}0 + 1//1 = 1//1}
+
+\cd{expand(1//1)} $\to$ symbolic \cd{1}
+
+\cd{string(1)} $\to$ \cd{"1"}
+
+Printed as: \cd{z(u)  =  1}
+\end{examplebox}
+
+\begin{notebox}
+\textbf{Why \cd{0*u\^{}0} and not just \cd{0}?}
+
+If \cd{init = 0} (a plain integer) and the first term
+added is \cd{13//1 * u\^{}4} (a Symbolics expression),
+Julia would try to compute \cd{0 + (Symbolics expression)}.
+This works in Julia because Symbolics.jl defines addition
+with integers, but using \cd{0*u\^{}0} is more explicit:
+it signals that the accumulator should be a Symbolics
+expression from the start, avoiding any type ambiguity.
+\end{notebox}
+
+
+% =============================================================
+\needspace{8\baselineskip}
+\section{\texttt{print\_labeled\_matrix} --- Type Change}
+% =============================================================
+
+\begin{minted}{julia}
+function print_labeled_matrix(
+        mat        ::Matrix{Rational{Int}},
+        row_labels ::Vector{String},
+        col_labels ::Vector{String})
+    rows = [[fmt_rat(mat[r,c]) for c in 1:size(mat,2)]
+            for r in 1:size(mat,1)]
+    print_table(rows, col_labels; row_labels=row_labels)
+end
+\end{minted}
+
+Two changes from script~04:
+\begin{itemize}
+  \item \cd{mat} type: \cd{Matrix\{Rational\{Int\}\}} instead
+        of \cd{Matrix\{Float64\}}.
+  \item Formatting function: \cd{fmt\_rat} instead of
+        \cd{fmt\_fn} (the configurable keyword argument
+        is gone, replaced by the single fixed formatter
+        appropriate for rational values).
+\end{itemize}
+
+Removing the \cd{fmt\_fn} keyword argument is possible here
+because \cd{Rational\{Int\}} values always use \cd{fmt\_rat}
+--- there is no longer a reason to offer an alternative formatter.
+
+
+% =============================================================
+\needspace{8\baselineskip}
+\section{The Print Functions --- What Changed}
+% =============================================================
+
+\needspace{5\baselineskip}
+\subsection{\texttt{print\_G}, \texttt{print\_M}, \texttt{print\_MG}}
+
+These three functions are structurally identical to
+script~04.
+The only difference is that \cd{print\_labeled\_matrix}
+now accepts \cd{Matrix\{Rational\{Int\}\}}, so the call
+sites work without any change to the function bodies.
+
+\begin{minted}{julia}
+function print_G(bm::BezierMatrix)
+    section("G  - Geometry Matrix (Control Points)")
+    println()
+    print_labeled_matrix(bm.G, ["P$(i-1)" for i in 1:bm.n], bm.axes)
+end
+\end{minted}
+
+\textbf{Output:} identical to script~04 because all
+values in $G$ are whole numbers and \cd{fmt\_rat} prints
+\cd{4//1} as \cd{4}.
+
+\needspace{5\baselineskip}
+\subsection{\texttt{print\_polynomials} --- uses \texttt{fmt\_poly}}
+
+\begin{minted}{julia}
+function print_polynomials(bm::BezierMatrix)
+    section("Resulting Polynomials  (via Symbolics.jl)")
+    println()
+    for (d, axis) in enumerate(bm.axes)
+        println("  $(axis)(u)  =  $(fmt_poly(bm.MG[:,d], bm.degree))")
+    end
+end
+\end{minted}
+
+The loop body is identical to script~04 but calls
+\cd{fmt\_poly} (the new Symbolics-based formatter) instead
+of script~04's hand-written \cd{fmt\_poly}.
+\cd{bm.MG[:,d]} passes a \cd{Vector\{Rational\{Int\}\}}
+column to the new \cd{fmt\_poly}, which builds the symbolic
+expression and returns its string representation.
+
+\textbf{Output:}
+\begin{minted}{text}
+  Resulting Polynomials  (via Symbolics.jl)
+  ----------------------------------------------------------------
+
+  x(u)  =  (24//1)*(u^2) - (32//1)*(u^3) + (13//1)*(u^4)
+  y(u)  =  (16//1)*u - (48//1)*(u^2) + (64//1)*(u^3) - (28//1)*(u^4)
+  z(u)  =  1
+\end{minted}
+
+\needspace{5\baselineskip}
+\subsection{\texttt{print\_eval\_table} --- rational arithmetic path}
+
+\begin{minted}{julia}
+function print_eval_table(bm::BezierMatrix,
+                          u_values::Vector{Rational{Int}})
+    section("Evaluation Table  -  P(u) = U * (M * G)")
+    pts  = evaluate_all(bm, u_values)
+    rows = Vector{Vector{String}}()
+    for (r, u_val) in enumerate(u_values)
+        row = [fmt_rat(u_val)]
+        for c in 1:bm.dim
+            exact = pts[r, c]
+            dec   = @sprintf("%.4f", Float64(exact))
+            push!(row, "$(fmt_rat(exact))  ($dec)")
+        end
+        push!(rows, row)
+    end
+    println()
+    print_table(rows, vcat(["u"], ["$(ax)(u)" for ax in bm.axes]);
+                style=:outline)
+end
+\end{minted}
+
+Compare to script~04's equivalent:
+
+\begin{center}
+\begin{tabular}{lp{4.5cm}p{4.5cm}}
+\toprule
+Step & Script~04 & Script~05 \\
+\midrule
+$u$ value display &
+  \cd{fmt(u)} --- float to string &
+  \cd{fmt\_rat(u\_val)} --- rational to string \\[4pt]
+Results from \cd{evaluate\_all} &
+  \cd{Matrix\{Float64\}} &
+  \cd{Matrix\{Rational\{Int\}\}} \\[4pt]
+Exact value per cell &
+  \cd{fmt\_frac(v)} --- \cd{rationalize()} to recover fraction &
+  \cd{fmt\_rat(exact)} --- fraction is already exact \\[4pt]
+Decimal conversion &
+  \cd{@sprintf("\%.4f", v)} --- float already available &
+  \cd{@sprintf("\%.4f", Float64(exact))} --- convert rational to float \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+The key difference is in the exact value column.
+Script~04 computed with floats and used \cd{rationalize()}
+to \emph{recover} the fraction.
+Script~05 never loses the fraction --- \cd{exact} is already
+a \cd{Rational\{Int\}}, so \cd{fmt\_rat} just formats it directly.
+
+\begin{examplebox}
+\textbf{Tracing one cell: $x$ at $u = \tfrac{1}{2}$}
+
+\cd{u\_val = 1//2} (exact rational, displayed as \cd{"1//2"})
+
+\cd{pts[3, 1] = 45//16} (from \cd{evaluate\_all}, exact rational)
+
+\cd{fmt\_rat(45//16)} $\to$ \cd{"45//16"}
+
+\cd{Float64(45//16) = 2.8125}
+
+\cd{@sprintf("\%.4f", 2.8125)} $\to$ \cd{"2.8125"}
+
+Cell string: \cd{"45//16  (2.8125)"}
+\end{examplebox}
+
+
+% =============================================================
+\needspace{8\baselineskip}
+\section{Summary: The Hybrid Design}
+% =============================================================
+
+Script~05 is the shortest in terms of new code ---
+but it demonstrates the most important design principle
+of the series: \textbf{composability}.
+
+The matrix method (scripts~03 and~04) and exact rational
+arithmetic (script~02) are independent choices.
+Script~05 shows that combining them requires changing
+only the type annotations and the one formatting function
+that bridges the two systems (\cd{fmt\_poly}).
+Everything else --- the matrix derivation logic, the
+evaluation batch, the table printer, the print structure
+--- works unchanged.
+
+\begin{center}
+\begin{tabular}{lll}
+\toprule
+Script & Method & Arithmetic \\
+\midrule
+01 & Bernstein algebraic & \cd{Float64} \\
+02 & Bernstein algebraic & \cd{Rational\{Int\}} + Symbolics.jl \\
+03 & Matrix (pedagogical) & \cd{Float64} \\
+04 & Matrix (straight) & \cd{Float64} \\
+05 & Matrix (straight) & \cd{Rational\{Int\}} + Symbolics.jl \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\vspace{2em}\hrule\vspace{0.5em}
+{\small\textcolor{gray}{%
+Code explanation for \texttt{05-bezier-matrix-sympy-text.jl}
+\textbar{} Directed and curated by E.R.\ Nurwijayadi
+\textbar{} Code and explanations AI-generated}}
+
+\end{document}

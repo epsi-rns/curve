@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bezier — Matrix Method</title>
+  <link rel="stylesheet" href="bulma.min.css">
+  <link rel="stylesheet" href="04-styles.css">
+  <script src="vue.global.prod.js"></script>
+  <!-- MathJax — CDN only, no local equivalent -->
+  <script>
+    window.MathJax = {
+      tex: { inlineMath: [['$','$']], displayMath: [['$$','$$']] },
+      options: { skipHtmlTags: ['script','noscript','style','textarea'] },
+      startup: { typeset: false }
+    };
+  </script>
+  <script src="tex-chtml.js"></script>
+</head>
+
+<body>
+  <div class="page-header">
+    <h1><code>Bezier — Matrix Method</code></h1>
+    <span>// P(u) = U · M · G</span>
+  </div>
+
+  <div id="app" class="main">
+
+    <!-- Case selector -->
+    <div class="card">
+      <div class="card-header">
+        <p class="card-header-title">Settings</p>
+      </div>
+      <div class="card-content" style="padding: 14px 16px;">
+
+        <div class="sec-label" style="margin-bottom:0.5rem;">Case</div>
+        <div class="buttons has-addons" style="margin-bottom: 1.2rem;">
+          <button class="button case-btn"
+            :class="caseKey==='c1' ? 'is-link is-selected' : ''"
+            @click="switchCase('c1')">
+            Case 1 — Quadratic 2D
+          </button>
+          <button class="button case-btn"
+            :class="caseKey==='c2' ? 'is-link is-selected' : ''"
+            @click="switchCase('c2')">
+            Case 2 — Quartic 3D
+          </button>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- G — Geometry Matrix -->
+    <div class="card">
+      <div class="card-header">
+        <p class="card-header-title">G — Geometry Matrix (Control Points)</p>
+      </div>
+      <div class="card-content" style="padding: 14px 16px;">
+        <div class="math-block" v-html="tex.G"></div>
+      </div>
+    </div>
+
+    <!-- M and M·G side by side -->
+    <div class="matrix-pair">
+
+      <div class="card">
+        <div class="card-header">
+          <p class="card-header-title">M — Basis Matrix</p>
+        </div>
+        <div class="card-content" style="padding: 14px 16px;">
+          <div class="math-block" v-html="tex.M"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <p class="card-header-title">M · G — Polynomial Coefficients</p>
+        </div>
+        <div class="card-content" style="padding: 14px 16px;">
+          <div class="math-block" v-html="tex.MG"></div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Polynomials -->
+    <div class="card">
+      <div class="card-header">
+        <p class="card-header-title">Resulting Polynomials</p>
+      </div>
+      <div class="card-content" style="padding: 14px 16px;">
+        <div class="poly-row" v-for="(row, i) in tex.polys" :key="i" v-html="row"></div>
+      </div>
+    </div>
+
+    <!-- Evaluation Table -->
+    <div class="card">
+      <div class="card-header">
+        <p class="card-header-title">Evaluation Table — P(u) = U · (M · G)</p>
+      </div>
+      <div class="card-content" style="padding: 14px 16px; overflow-x: auto;">
+        <table class="eval-table">
+          <thead>
+            <tr>
+              <th>u</th>
+              <th v-for="ax in currentCase.axes" :key="ax">{{ ax }}(u)</th>
+            </tr>
+          </thead>
+          <tbody>
+            <!-- Fixed rows: 0, 1/4, 1/2, 3/4, 1 -->
+            <tr v-for="row in evalRows" :key="row.uStr">
+              <td class="u-col" v-html="row.uTex"></td>
+              <td v-for="(cell, ci) in row.cells" :key="ci">
+                <div class="val-exact" v-html="cell.exact"></div>
+                <div class="val-dec">{{ cell.dec }}</div>
+              </td>
+            </tr>
+            <!-- Slider row -->
+            <tr class="highlight">
+              <td class="u-col">{{ u.toFixed(2) }}</td>
+              <td v-for="(cell, ci) in sliderRow" :key="ci">
+                <div class="val-exact" v-html="cell.exact"></div>
+                <div class="val-dec">{{ cell.dec }}</div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- u slider -->
+    <div class="card">
+      <div class="card-header">
+        <p class="card-header-title">Settings</p>
+      </div>
+      <div class="card-content" style="padding: 14px 16px;">
+
+        <div class="sec-label">Parameter u (slider row)</div>
+        <div class="u-row">
+          <label><code>u</code></label>
+          <span class="u-badge">{{ u.toFixed(2) }}</span>
+        </div>
+        <input type="range" min="0" max="1" step="0.01"
+          v-model.number="u" @input="onSlider">
+
+      </div>
+    </div>
+
+  </div><!-- app -->
+
+  <script>
+  // =============================================================
+  // Rational arithmetic — exact fractions {p, q}, reduced by GCD
+  // =============================================================
+  function gcd(a, b) {
+    a = Math.abs(a); b = Math.abs(b);
+    while (b) { [a, b] = [b, a % b]; }
+    return a;
+  }
+
+  function rat(p, q = 1) {
+    // Returns reduced rational {p, q} with q > 0
+    if (q < 0) { p = -p; q = -q; }
+    const g = gcd(Math.abs(p), q);
+    return { p: p / g, q: q / g };
+  }
+
+  function ratAdd(a, b) {
+    return rat(a.p * b.q + b.p * a.q, a.q * b.q);
+  }
+
+  function ratMul(a, b) {
+    return rat(a.p * b.p, a.q * b.q);
+  }
+
+  function ratPow(r, n) {
+    // r^n for non-negative integer n
+    if (n === 0) return rat(1);
+    let result = rat(1);
+    for (let i = 0; i < n; i++) result = ratMul(result, r);
+    return result;
+  }
+
+  function ratToTex(r) {
+    if (r.q === 1) return String(r.p);
+    const sign = r.p < 0 ? '-' : '';
+    return sign + '\\dfrac{' + Math.abs(r.p) + '}{' + r.q + '}';
+  }
+
+  function ratToFloat(r) {
+    return r.p / r.q;
+  }
+
+  // =============================================================
+  // BezierMatrix — exact rational arithmetic, JS port of Python
+  // =============================================================
+  class BezierMatrix {
+
+    constructor(points, axes) {
+      this.axes   = axes;
+      this.n      = points.length;       // number of control points
+      this.degree = this.n - 1;
+      this.dim    = axes.length;
+
+      // G as rational matrix
+      this.G = points.map(row => row.map(v => rat(v)));
+
+      // Derive M
+      this.M = this._deriveM();
+
+      // M·G
+      this.MG = this._matMul(this.M, this.G);
+    }
+
+    _binomial(n, k) {
+      // Integer binomial C(n, k)
+      if (k < 0 || k > n) return 0;
+      if (k === 0 || k === n) return 1;
+      let r = 1;
+      for (let i = 0; i < k; i++) {
+        r = r * (n - i) / (i + 1);
+      }
+      return Math.round(r);
+    }
+
+    _deriveM() {
+      const n    = this.degree;
+      const size = this.n;
+      // Initialize as zero rational matrix
+      const M = Array.from({ length: size }, () =>
+        Array.from({ length: size }, () => rat(0))
+      );
+      for (let i = 0; i < size; i++) {
+        const m = n - i;
+        for (let j = 0; j <= m; j++) {
+          const k     = i + j;
+          const coef  = this._binomial(n, i)
+                      * this._binomial(m, j)
+                      * Math.pow(-1, j);
+          M[n - k][i] = rat(coef);
+        }
+      }
+      return M;
+    }
+
+    _matMul(A, B) {
+      // A: rows×cols, B: cols×bcols — rational matrix multiply
+      const rows  = A.length;
+      const cols  = B[0].length;
+      const inner = B.length;
+      return Array.from({ length: rows }, (_, r) =>
+        Array.from({ length: cols }, (_, c) => {
+          let sum = rat(0);
+          for (let k = 0; k < inner; k++)
+            sum = ratAdd(sum, ratMul(A[r][k], B[k][c]));
+          return sum;
+        })
+      );
+    }
+
+    // U row vector [u^n, u^(n-1), ..., u, 1] as rational array
+    _Uvec(uRat) {
+      return Array.from({ length: this.n }, (_, k) =>
+        ratPow(uRat, this.degree - k)
+      );
+    }
+
+    // Evaluate at a rational u: returns array of rational values
+    evaluate(uRat) {
+      const U = this._Uvec(uRat);
+      // P = U · MG  (1 × n+1) × (n+1 × dim) → (1 × dim)
+      return Array.from({ length: this.dim }, (_, c) => {
+        let sum = rat(0);
+        for (let k = 0; k < this.n; k++)
+          sum = ratAdd(sum, ratMul(U[k], this.MG[k][c]));
+        return sum;
+      });
+    }
+  }
+
+  // =============================================================
+  // LaTeX builders
+  // =============================================================
+
+  function matToTex(mat, rowLabels, colLabels) {
+    const rows = mat.length;
+    const cols = mat[0].length;
+    const colSpec = 'r' + 'c'.repeat(cols);
+    let s = '\\begin{array}{' + colSpec + '}';
+    // Header
+    s += '& ' + colLabels.map(l => '\\mathbf{' + l + '}').join(' & ') + ' \\\\[2pt] \\hline \\\\[-6pt]';
+    // Rows
+    mat.forEach((row, r) => {
+      s += rowLabels[r] + ' & ' + row.map(ratToTex).join(' & ') + ' \\\\';
+    });
+    s += '\\end{array}';
+    return '$$' + s + '$$';
+  }
+
+  function buildPolyStr(mgCol, degree, axes, axisIdx) {
+    // Build polynomial string from MG column
+    const sups = ['u^4','u^3','u^2','u',''];
+    const offset = 4 - degree;
+    let terms = [];
+    mgCol.forEach((coef, k) => {
+      if (coef.p === 0) return;
+      const sup  = sups[offset + k];
+      const absP = Math.abs(coef.p);
+      const q    = coef.q;
+      let coefStr;
+      if (absP === q && sup !== '') {
+        coefStr = '';  // coefficient of 1
+      } else if (q === 1) {
+        coefStr = String(absP);
+      } else {
+        coefStr = '\\dfrac{' + absP + '}{' + q + '}';
+      }
+      terms.push({ sign: coef.p < 0 ? '-' : '+', coefStr, sup });
+    });
+
+    if (terms.length === 0) return axes[axisIdx] + '(u) = 0';
+
+    let expr = '';
+    terms.forEach((t, i) => {
+      if (i === 0) {
+        expr += (t.sign === '-' ? '-' : '') + t.coefStr + t.sup;
+      } else {
+        expr += ' ' + t.sign + ' ' + t.coefStr + t.sup;
+      }
+    });
+    return axes[axisIdx] + '(u) = ' + expr;
+  }
+
+  // =============================================================
+  // Case definitions
+  // =============================================================
+  const CASES = {
+    c1: {
+      label:    'Case 1 — Quadratic 2D',
+      points:   [[1,1],[3,3],[5,1]],
+      axes:     ['x','y'],
+      ptNames:  ['P_0','P_1','P_2'],
+    },
+    c2: {
+      label:    'Case 2 — Quartic 3D',
+      points:   [[0,0,1],[0,4,1],[4,0,1],[4,4,1],[5,4,1]],
+      axes:     ['x','y','z'],
+      ptNames:  ['P_0','P_1','P_2','P_3','P_4'],
+    },
+  };
+
+  // Fixed u values: 0, 1/4, 1/2, 3/4, 1
+  const FIXED_U = [
+    { r: rat(0),    tex: '0' },
+    { r: rat(1, 4), tex: '\\tfrac{1}{4}' },
+    { r: rat(1, 2), tex: '\\tfrac{1}{2}' },
+    { r: rat(3, 4), tex: '\\tfrac{3}{4}' },
+    { r: rat(1),    tex: '1' },
+  ];
+
+  // =============================================================
+  // Vue app
+  // =============================================================
+  const { createApp, ref, computed, watch, onMounted, nextTick } = Vue;
+
+  createApp({
+    setup() {
+
+      const caseKey = ref('c1');
+      const u       = ref(0.5);
+      const tex     = ref({ G:'', M:'', MG:'', polys:[] });
+      const evalRows  = ref([]);
+      const sliderRow = ref([]);
+
+      let bm = null;
+
+      const currentCase = computed(() => CASES[caseKey.value]);
+
+      // ── Typeset MathJax after DOM update ─────────────────
+      async function typeset() {
+        await nextTick();
+        if (window.MathJax?.typesetPromise) {
+          await MathJax.typesetPromise(
+            [document.getElementById('app')]
+          );
+        }
+      }
+
+      // ── Build all LaTeX strings ───────────────────────────
+      function buildTex() {
+        const cs  = currentCase.value;
+        const deg = bm.degree;
+
+        // Power labels for rows
+        const powLabels = Array.from({ length: bm.n }, (_, k) =>
+          k === deg ? '1' : ('u^{' + (deg - k) + '}')
+        );
+
+        // G
+        tex.value.G = matToTex(
+          bm.G,
+          cs.ptNames,
+          cs.axes
+        );
+
+        // M
+        tex.value.M = matToTex(
+          bm.M,
+          powLabels,
+          cs.ptNames
+        );
+
+        // MG
+        tex.value.MG = matToTex(
+          bm.MG,
+          powLabels,
+          cs.axes
+        );
+
+        // Polynomials
+        tex.value.polys = cs.axes.map((ax, i) =>
+          '$$' + buildPolyStr(
+            bm.MG.map(row => row[i]),
+            deg, cs.axes, i
+          ) + '$$'
+        );
+      }
+
+      // ── Evaluation table rows ─────────────────────────────
+      function buildEvalRows() {
+        evalRows.value = FIXED_U.map(fu => {
+          const pts = bm.evaluate(fu.r);
+          return {
+            uStr: String(ratToFloat(fu.r)),
+            uTex: '$' + fu.tex + '$',
+            cells: pts.map(r => ({
+              exact: '$' + ratToTex(r) + '$',
+              dec:   '(' + ratToFloat(r).toFixed(4) + ')',
+            })),
+          };
+        });
+      }
+
+      // ── Slider row ────────────────────────────────────────
+      function buildSliderRow() {
+        const uRat = rat(Math.round(u.value * 10000), 10000);
+        const pts  = bm.evaluate(uRat);
+        sliderRow.value = pts.map(r => ({
+          exact: ratToFloat(r).toFixed(4),
+          dec:   '',
+        }));
+      }
+
+      // ── Full rebuild ──────────────────────────────────────
+      function rebuild() {
+        const cs = currentCase.value;
+        bm = new BezierMatrix(cs.points, cs.axes);
+        buildTex();
+        buildEvalRows();
+        buildSliderRow();
+        typeset();
+      }
+
+      function switchCase(key) {
+        if (key === caseKey.value) return;
+        caseKey.value = key;
+        rebuild();
+      }
+
+      function onSlider() {
+        buildSliderRow();
+      }
+
+      onMounted(() => { rebuild(); });
+
+      return {
+        caseKey, u, tex, evalRows, sliderRow, currentCase,
+        switchCase, onSlider,
+      };
+    },
+  }).mount('#app');
+  </script>
+</body>
+</html>
