@@ -2,7 +2,7 @@
 
 A multi-language study of **Bézier curves** — from the algebra
 to an interactive 3-D plot — implemented progressively across
-six environments.
+four environments.
 
 > *Directed and curated by E.R. Nurwijayadi.
 > Code and explanations AI-generated (Claude, claude.ai).*
